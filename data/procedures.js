@@ -683,15 +683,31 @@ const procedures = [
     id: 18,
     title: "District Branches",
     category: "Reference",
-    type: "reference",
-    description: "District branch reference.",
+    type: "districtBranches",
+    description: "Search district branches by city or branch code.",
     sections: [
       {
-        heading: "Important",
+        heading: "District Branches",
         items: [
-          "Detailed district branch information has not been added yet."
+          "0386-10 — KC, MO",
+          "0387-40 — Lenexa, KS",
+          "0417-10 — Salina, KS",
+          "0386-20 — Gladstone, MO",
+          "0386-21 — Leavenworth, KS",
+          "0386-23 — Grandview, MO",
+          "0386-24 — Blue Springs, MO",
+          "0386-25 — Manhattan, KS",
+          "0386-30 — Platte City, MO",
+          "0386-32 — Belton, MO",
+          "0386-35 — HD, KC, MO",
+          "0386-40 — Junction City",
+          "0386-45 — Harrisonville, MO",
+          "0386-46 — Colby, KS",
+          "0386-64 — Joseph, MO",
+          "0386-90 — Topeka, KS",
+          "0387-24 — Shawnee, KS"
         ]
-      }
+            }
     ]
   },
 
