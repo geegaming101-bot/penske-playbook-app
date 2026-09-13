@@ -32,6 +32,48 @@
       </div>
 
       <div id="procedureGrid" class="procedure-grid"></div>
+
+      <section class="master-backup-panel">
+        <div class="master-backup-heading">
+          <div>
+            <span class="mini-label">FULL APP BACKUP</span>
+            <h3>Save Everything</h3>
+          </div>
+          <span class="backup-version-badge">Backup V2</span>
+        </div>
+
+        <p>
+          Export your saved Calls, Vehicle Log, Yard Check session, Yard Check page images,
+          checked/research status, yard notes, and other saved Playbook data into one file.
+        </p>
+
+        <div class="master-backup-actions">
+          <button id="playbookExportAllBtn" class="primary-btn" type="button">Export Everything</button>
+          <button id="playbookImportAllBtn" class="secondary-btn" type="button">Import Everything</button>
+          <button id="playbookResetAllBtn" class="secondary-btn danger-outline" type="button">Reset Saved Data</button>
+          <input id="playbookImportAllFile" class="hidden-file-input" type="file" accept=".json,application/json" />
+        </div>
+
+        <div id="playbookBackupStatus" class="master-backup-status hidden"></div>
+
+        <div id="playbookImportChoicePanel" class="import-choice-panel hidden">
+          <span class="mini-label">HOW SHOULD THIS BACKUP BE IMPORTED?</span>
+          <p>
+            <strong>Merge</strong> keeps your current Calls and Vehicle Log and combines them with the backup.
+            For Yard Check, the newer active session is kept.
+            <strong>Replace</strong> replaces the saved app data on this device with the backup.
+          </p>
+          <div class="backup-actions">
+            <button id="playbookMergeAllBtn" class="primary-btn" type="button">Merge With Current</button>
+            <button id="playbookReplaceAllBtn" class="secondary-btn danger-outline" type="button">Replace Current Data</button>
+            <button id="playbookCancelImportAllBtn" class="secondary-btn" type="button">Cancel</button>
+          </div>
+        </div>
+
+        <p class="master-backup-note">
+          Your OpenAI API key is never included in backup files.
+        </p>
+      </section>
     </section>
 
     <section id="howToView" class="hidden">
@@ -262,12 +304,12 @@
             <div class="backup-panel-heading">
               <div>
                 <span class="mini-label">BACKUP / TRANSFER</span>
-                <strong>Move your saved experience</strong>
+                <strong>Full app backup / transfer</strong>
               </div>
             </div>
 
             <p>
-              Export your saved Calls and Vehicle Log to one backup file. Import it later on this or another device.
+              Export the full saved app backup — Calls, Vehicle Log, Yard Check, page images, and other saved app data.
             </p>
 
             <div class="backup-actions">
@@ -279,7 +321,7 @@
 
             <div id="importChoicePanel" class="import-choice-panel hidden">
               <span class="mini-label">HOW SHOULD THIS BACKUP BE IMPORTED?</span>
-              <p><strong>Merge</strong> keeps current data and adds/updates items from the backup. <strong>Replace</strong> wipes current Calls and Vehicle Log first.</p>
+              <p><strong>Merge</strong> combines compatible saved data. <strong>Replace</strong> replaces the saved app data on this device.</p>
               <div class="backup-actions">
                 <button id="mergeBackupBtn" class="primary-btn" type="button">Merge With Current</button>
                 <button id="replaceBackupBtn" class="secondary-btn danger-outline" type="button">Replace Current Data</button>
