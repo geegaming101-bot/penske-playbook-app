@@ -2134,3 +2134,19 @@ button {
   .district-branch-card { align-items:stretch; flex-direction:column; }
   .branch-copy-btn { width:100%; }
 }
+
+
+/* V2.7 — AI Resolution Review */
+.resolution-review-actions { margin: .85rem 0; }
+.resolution-review-actions .primary-btn { width: 100%; }
+.resolution-review-area {
+  display: grid; gap: .85rem; margin: 1rem 0;
+  padding: 1rem; border: 1px solid #dbe3ec; border-radius: 14px; background: #f8fafc;
+}
+.resolution-review-thread { display: grid; gap: .7rem; max-height: 360px; overflow-y: auto; }
+.resolution-review-message { padding: .8rem; border-radius: 12px; background: #fff; border: 1px solid #e2e8f0; }
+.resolution-review-message.user { margin-left: 1.5rem; }
+.resolution-review-message.assistant { margin-right: 1.5rem; }
+.resolution-review-message span { display:block; margin-bottom:.35rem; font-size:.7rem; font-weight:800; letter-spacing:.08em; color:#64748b; }
+.resolution-review-message p { margin:0; line-height:1.45; }
+#saveResolutionBtn:disabled { opacity:.5; cursor:not-allowed; }
