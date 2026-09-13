@@ -201,6 +201,32 @@
               </div>
               <div id="aiCallCards" class="ai-call-cards"></div>
               <pre id="aiCallText" class="ai-raw-text hidden"></pre>
+
+              <div id="liveAiConversation" class="live-ai-conversation">
+                <div class="live-ai-conversation-heading">
+                  <div>
+                    <span class="mini-label">KEEP SOLVING</span>
+                    <strong>Tell AI what happens next</strong>
+                  </div>
+                  <span class="live-ai-tip">Live call only</span>
+                </div>
+
+                <div id="liveAiThread" class="live-ai-thread"></div>
+
+                <label class="live-ai-reply-label" for="liveAiReply">
+                  Update
+                  <textarea
+                    id="liveAiReply"
+                    placeholder="Example: He's in Junction City and the truck is not safe to drive."
+                  ></textarea>
+                </label>
+
+                <button id="sendLiveAiReplyBtn" class="ai-help-btn live-ai-send-btn" type="button">
+                  Send Update
+                </button>
+
+                <div id="liveAiLoading" class="ai-loading hidden">Working on the next step...</div>
+              </div>
             </div>
           </section>
 
@@ -244,11 +270,11 @@
             </label>
 
             <div class="resolution-review-actions">
-              <button id="reviewResolutionBtn" class="primary-btn" type="button">Review Resolution with AI</button>
+              <button id="reviewResolutionBtn" class="primary-btn" type="button">Review Finished Call with AI</button>
             </div>
 
             <div id="resolutionReviewArea" class="resolution-review-area hidden">
-              <span class="mini-label">RESOLUTION CONVERSATION</span>
+              <span class="mini-label">AFTER THE CALL</span>
               <div id="resolutionReviewThread" class="resolution-review-thread"></div>
 
               <label>
