@@ -545,6 +545,146 @@ async function restoreYardPageImages(records = []) {
 }
 
 
+let yardTimerInterval = null;
+
+function yardTimerElapsedMs(session = loadYardSession()) {
+  const timing = session.timing || {};
+  const accumulated = Number(timing.accumulatedMs || 0);
+  if (!timing.running || !timing.startedAt) return Math.max(0, accumulated);
+  const live = Date.now() - new Date(timing.startedAt).getTime();
+  return Math.max(0, accumulated + (Number.isFinite(live) ? live : 0));
+}
+
+function formatYardDuration(ms) {
+  const totalSeconds = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours) return `${hours}:${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}`;
+  return `${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}`;
+}
+
+function renderYardProductivity() {
+  const session = loadYardSession();
+  const processed = session.units.filter(unit => unit.checked || unit.researchNeeded).length;
+  const elapsed = yardTimerElapsedMs(session);
+  setText("yardElapsedTime", formatYardDuration(elapsed));
+  setText("yardProcessedCount", processed);
+  setText("yardAverageTime", processed ? formatYardDuration(elapsed / processed) : "—");
+
+  const button = document.getElementById("yardTimerToggleBtn");
+  if (button) button.textContent = session.timing?.running ? "Pause Yard Walk" : (elapsed ? "Resume Yard Walk" : "Start Yard Walk");
+
+  if (session.timing?.running && !yardTimerInterval) {
+    yardTimerInterval = setInterval(renderYardProductivity, 1000);
+  } else if (!session.timing?.running && yardTimerInterval) {
+    clearInterval(yardTimerInterval);
+    yardTimerInterval = null;
+  }
+}
+
+function toggleYardTimer() {
+  const session = loadYardSession();
+  session.timing = session.timing || { accumulatedMs: 0, running: false, startedAt: null };
+
+  if (session.timing.running) {
+    const started = new Date(session.timing.startedAt || Date.now()).getTime();
+    session.timing.accumulatedMs = Number(session.timing.accumulatedMs || 0) + Math.max(0, Date.now() - started);
+    session.timing.running = false;
+    session.timing.startedAt = null;
+  } else {
+    session.timing.running = true;
+    session.timing.startedAt = new Date().toISOString();
+  }
+  saveYardSession(session);
+  renderYardProductivity();
+}
+
+function resetYardTimer() {
+  if (!window.confirm("Reset the Yard Walk timer and productivity timing for this session?")) return;
+  const session = loadYardSession();
+  session.timing = { accumulatedMs: 0, running: false, startedAt: null };
+  saveYardSession(session);
+  renderYardProductivity();
+}
+
+function focusNextYardUnit(message = "") {
+  const input = document.getElementById("yardUnitSearch");
+  const result = document.getElementById("yardUnitResult");
+  if (input) input.value = "";
+  if (result) result.innerHTML = message ? `<div class="yard-next-unit">${escapeHtml(message)}</div>` : "";
+  requestAnimationFrame(() => {
+    input?.focus({ preventScroll: true });
+    try { input?.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
+  });
+}
+
+function yardSessionExportCopy(session) {
+  const copy = JSON.parse(JSON.stringify(session || makeEmptyYardSession()));
+  if (copy.timing?.running) {
+    copy.timing.accumulatedMs = yardTimerElapsedMs(session);
+    copy.timing.running = false;
+    copy.timing.startedAt = null;
+  }
+  return copy;
+}
+
+async function exportYardOnlyBackup() {
+  const session = loadYardSession();
+  if (!session.units.length) {
+    setYardTransferStatus("There is no active Yard Check to export.", "warn");
+    return;
+  }
+  let pageImages = [];
+  try { pageImages = await getAllYardPageImagesForSession(session.sessionId); }
+  catch (error) { console.warn("Could not include Yard page images.", error); }
+
+  const payload = {
+    app: "Penske Playbook",
+    backupType: "yard-check",
+    backupVersion: 1,
+    exportedAt: new Date().toISOString(),
+    yardCheck: { session: yardSessionExportCopy(session), pageImages }
+  };
+  const stamp = new Date().toISOString().slice(0,10);
+  downloadJsonFile(`penske-yard-check-${stamp}.json`, payload);
+  setYardTransferStatus(`Yard Check exported: ${session.units.length} units and ${pageImages.length} saved page image${pageImages.length===1?"":"s"}.`, "good");
+}
+
+function setYardTransferStatus(message, kind = "good") {
+  const el = document.getElementById("yardSessionTransferStatus");
+  if (!el) return;
+  el.textContent = message;
+  el.className = `yard-status ${kind}`;
+  el.classList.remove("hidden");
+}
+
+async function importYardOnlyBackup(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const payload = JSON.parse(await file.text());
+    if (payload?.app !== "Penske Playbook" || payload?.backupType !== "yard-check" ||
+        !Array.isArray(payload?.yardCheck?.session?.units)) {
+      throw new Error("That file is not a Penske Playbook Yard Check backup.");
+    }
+    const current = loadYardSession();
+    if (current.sessionId) await clearYardPageImages(current.sessionId);
+    localStorage.setItem(YARD_SESSION_KEY, JSON.stringify(payload.yardCheck.session));
+    await restoreYardPageImages(Array.isArray(payload.yardCheck.pageImages) ? payload.yardCheck.pageImages : []);
+    renderYardDashboard();
+    renderYardResearchList();
+    renderYardActiveSessionSummary();
+    renderYardProductivity();
+    focusNextYardUnit("Yard Check backup imported. Ready.");
+    setYardTransferStatus(`Imported ${payload.yardCheck.session.units.length} Yard Check units.`, "good");
+  } catch (error) {
+    setYardTransferStatus(error.message || "Could not import that Yard Check backup.", "warn");
+  } finally {
+    event.target.value = "";
+  }
+}
+
 function renderYardDashboard() {
   const session = loadYardSession();
   const loaded = session.units.length;
@@ -558,6 +698,7 @@ function renderYardDashboard() {
   setText("yardResearchCount", research);
   setText("yardRemainingCount", remaining);
   setText("yardAttentionCount", attention);
+  renderYardProductivity();
 }
 
 function setText(id, value) {
@@ -1297,7 +1438,11 @@ function searchYardUnit(){
 
 function buildYardUnitResultCard(unit){
   const vehicle=yardVehicleSummary(unit),customer=yardCustomerName(unit);
-  return `<article class="yard-result-card yard-field-result ${yardAttentionClass(unit)}" data-yard-result-id="${escapeHtml(unit.id)}">
+  const alreadyHandled = unit.checked || unit.researchNeeded;
+  const handledBanner = alreadyHandled
+    ? `<div class="yard-already-handled">${unit.checked ? "✓ ALREADY CHECKED" : "⚑ ALREADY IN RESEARCH"}${unit.physicalLocation ? ` · ${escapeHtml(unit.physicalLocation)}` : ""}</div>`
+    : "";
+  return `<article class="yard-result-card yard-field-result ${yardAttentionClass(unit)}" data-yard-result-id="${escapeHtml(unit.id)}">${handledBanner}
     <div class="yard-field-primary"><div><span class="yard-result-badge found">${unit.unlisted?"NOT ON IMPORT":"FOUND"}</span>${yardAttentionBadge(unit)}<h3>UNIT ${escapeHtml(unit.unitNumber)}</h3></div><div class="yard-page-hero"><span>PAGE</span><strong>${escapeHtml(unit.page||"—")}</strong></div></div>
     <div class="yard-fast-facts"><div><span>STATUS</span><strong>${escapeHtml(unit.vehicleStatus||"Not captured")}</strong></div>${vehicle?`<div><span>VEHICLE</span><strong>${escapeHtml(vehicle)}</strong></div>`:""}${customer?`<div><span>CUSTOMER</span><strong>${escapeHtml(customer)}</strong></div>`:""}</div>
     <div class="yard-field-actions-top">${unit.page&&unit.pageImageAvailable!==false?`<button class="secondary-btn small-btn" type="button" data-yard-result-view-page="${unit.page}">View Page</button>`:""}<button class="secondary-btn small-btn" type="button" data-yard-more="${escapeHtml(unit.id)}">More Details</button></div>
@@ -1343,18 +1488,7 @@ function attachYardUnitResultEvents() {
       });
 
       if (nextChecked) {
-        const input = document.getElementById("yardUnitSearch");
-        const result = document.getElementById("yardUnitResult");
-
-        if (input) input.value = "";
-        if (result) {
-          result.innerHTML = `
-            <div class="yard-next-unit">
-              Unit ${escapeHtml(unit.unitNumber)} checked. Ready for the next unit.
-            </div>
-          `;
-        }
-        input?.focus();
+        focusNextYardUnit(`Unit ${unit.unitNumber} checked. Ready for the next unit.`);
       } else {
         searchYardUnit();
       }
@@ -1370,12 +1504,17 @@ function attachYardUnitResultEvents() {
 
       const note = getYardNoteValue(unitId);
 
+      const nextResearch = !unit.researchNeeded;
       updateYardUnit(unitId, {
-        researchNeeded: !unit.researchNeeded,
+        researchNeeded: nextResearch,
         yardNote: note
       });
 
-      searchYardUnit();
+      if (nextResearch) {
+        focusNextYardUnit(`Unit ${unit.unitNumber} added to Research. Ready for the next unit.`);
+      } else {
+        searchYardUnit();
+      }
     });
   });
 
@@ -1845,6 +1984,11 @@ function initializeYardCheck() {
     document.getElementById("yardSessionOptions")?.classList.add("hidden");
   });
   document.getElementById("dashboardClearYardSessionBtn")?.addEventListener("click", clearYardSession);
+  document.getElementById("yardTimerToggleBtn")?.addEventListener("click", toggleYardTimer);
+  document.getElementById("yardTimerResetBtn")?.addEventListener("click", resetYardTimer);
+  document.getElementById("exportYardOnlyBtn")?.addEventListener("click", exportYardOnlyBackup);
+  document.getElementById("importYardOnlyBtn")?.addEventListener("click", () => document.getElementById("importYardOnlyFile")?.click());
+  document.getElementById("importYardOnlyFile")?.addEventListener("change", importYardOnlyBackup);
   document.querySelectorAll("[data-yard-filter]").forEach((button) => {
     button.addEventListener("click", () => {
       openYardListBrowser(button.dataset.yardFilter);
