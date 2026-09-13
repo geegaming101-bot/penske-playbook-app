@@ -2903,3 +2903,112 @@ button {
     grid-column: 1 / -1;
   }
 }
+
+
+/* ==============================
+   V3.3 — Universal Yard Import
+   ============================== */
+
+.yard-import-help {
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.yard-selected-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.yard-selected-summary span {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.yard-source-list {
+  display: grid;
+  gap: 10px;
+}
+
+.yard-source-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.yard-source-row.unsupported {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.yard-source-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.yard-source-info > div {
+  min-width: 0;
+}
+
+.yard-source-info strong,
+.yard-source-info span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.yard-source-info span {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.yard-source-order {
+  display: grid !important;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  margin: 0 !important;
+  border-radius: 9px;
+  background: #111827;
+  color: #ffffff !important;
+  font-weight: 800;
+  font-size: 0.8rem !important;
+}
+
+.yard-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.yard-source-actions button:disabled {
+  opacity: 0.4;
+}
+
+@media (max-width: 720px) {
+  .yard-source-row {
+    flex-direction: column;
+  }
+
+  .yard-source-actions {
+    justify-content: stretch;
+  }
+
+  .yard-source-actions button {
+    flex: 1 1 auto;
+  }
+}
