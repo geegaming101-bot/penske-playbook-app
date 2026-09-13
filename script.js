@@ -1007,6 +1007,7 @@ async function analyzeYardPhotos() {
 
     saveYardSession(session);
     renderYardImportReview();
+    renderYardCompactImportSummary();
 
     document.getElementById("yardModePanel")?.classList.add("hidden");
 
@@ -1117,180 +1118,75 @@ function correctYardUnit(unitId) {
   renderYardImportReview();
 }
 
-function startYardMode() {
-  const session = loadYardSession();
-
-  if (!session.units.length) {
-    setYardStatus("Import a Yard Check first.", "warn");
-    return;
-  }
-
-  const panel = document.getElementById("yardModePanel");
-  const input = document.getElementById("yardUnitSearch");
-
-  panel?.classList.remove("hidden");
-  panel?.scrollIntoView({ behavior: "smooth", block: "start" });
-
-  if (input) {
-    input.value = "";
-    input.focus();
-  }
-
-  const result = document.getElementById("yardUnitResult");
-  if (result) result.innerHTML = "";
+function yardVehicleSummary(unit){
+  const raw=String(unit?.vehicleType||"").trim();
+  const cdl=/\bNON[\s-]?CDL\b/i.test(raw)?"NON-CDL":(/\bCDL\b/i.test(raw)?"CDL":"");
+  const type=raw.replace(/\bNON[\s-]?CDL\b/ig,"").replace(/\(\s*\)/g,"").replace(/\s{2,}/g," ").trim();
+  return [type,cdl].filter(Boolean).join(" · ");
+}
+function yardCustomerName(unit){return String(unit?.customerName||unit?.customer||unit?.customerCompany||"").trim();}
+function renderYardCompactImportSummary(){
+  const s=loadYardSession(),el=document.getElementById("yardCompactImportText");if(!el)return;
+  const src=Array.isArray(s.sources)?s.sources.length:0,p=Number(s.sourcePages||0),u=Array.isArray(s.units)?s.units.length:0;
+  el.textContent=`${src} source${src===1?"":"s"} · ${p} page${p===1?"":"s"} · ${u} unit${u===1?"":"s"}`;
+}
+function collapseYardImport(){
+  document.getElementById("yardImportPanel")?.classList.add("hidden");
+  document.getElementById("yardImportReview")?.classList.add("hidden");
+  document.getElementById("yardCompactImportSummary")?.classList.remove("hidden");
+  const b=document.getElementById("yardToggleImportBtn");if(b)b.textContent="View Import";
+  renderYardCompactImportSummary();
+}
+function toggleYardImportDetails(){
+  const c=document.getElementById("yardImportPanel"),r=document.getElementById("yardImportReview"),b=document.getElementById("yardToggleImportBtn");
+  const open=c?.classList.contains("hidden");c?.classList.toggle("hidden",!open);r?.classList.toggle("hidden",!open);if(b)b.textContent=open?"Hide Import":"View Import";
+}
+function yardMatches(session,q){
+  q=String(q||"").replace(/\D/g,"");if(!q)return[];
+  const units=session.units||[],exact=units.filter(u=>String(u.unitNumber||"")===q);if(exact.length)return exact;
+  if(q.length>=4)return units.filter(u=>String(u.unitNumber||"").endsWith(q));
+  return [];
+}
+function startYardMode(){
+  const session=loadYardSession();if(!session.units.length){setYardStatus("Import a Yard Check first.","warn");return;}
+  const panel=document.getElementById("yardModePanel"),input=document.getElementById("yardUnitSearch"),result=document.getElementById("yardUnitResult");
+  panel?.classList.remove("hidden");collapseYardImport();renderYardDashboard();renderYardResearchList();renderYardListBrowser();
+  panel?.scrollIntoView({behavior:"smooth",block:"start"});if(result)result.innerHTML="";
+  if(input){input.value="";setTimeout(()=>input.focus(),100);}
 }
 
-function searchYardUnit() {
-  const input = document.getElementById("yardUnitSearch");
-  const result = document.getElementById("yardUnitResult");
-
-  if (!input || !result) return;
-
-  const query = input.value.replace(/\D/g, "");
-
-  if (!query) {
-    result.innerHTML = "";
-    return;
+function searchYardUnit(){
+  const input=document.getElementById("yardUnitSearch"),result=document.getElementById("yardUnitResult");if(!input||!result)return;
+  const q=input.value.replace(/\D/g,"");if(!q){result.innerHTML="";return;}
+  const session=loadYardSession(),matches=yardMatches(session,q);
+  if(matches.length===1){result.innerHTML=buildYardUnitResultCard(matches[0]);attachYardUnitResultEvents();return;}
+  if(matches.length>1){
+    result.innerHTML=`<div class="yard-quick-matches"><strong>${matches.length} matches</strong>${matches.slice(0,8).map(u=>`<button type="button" data-yard-pick="${escapeHtml(u.id)}"><b>${escapeHtml(u.unitNumber)}</b><span>Page ${escapeHtml(u.page||"?")} · ${escapeHtml(u.vehicleStatus||"No status")}</span></button>`).join("")}</div>`;
+    result.querySelectorAll("[data-yard-pick]").forEach(b=>b.addEventListener("click",()=>{const u=session.units.find(x=>x.id===b.dataset.yardPick);if(u){input.value=u.unitNumber;result.innerHTML=buildYardUnitResultCard(u);attachYardUnitResultEvents();}}));return;
   }
-
-  const session = loadYardSession();
-  const matches = session.units.filter((unit) => unit.unitNumber === query);
-
-  if (!matches.length) {
-    result.innerHTML = `
-      <article class="yard-result-card yard-not-found-card">
-        <span class="yard-result-badge not-found">NOT FOUND ON THIS YARD CHECK</span>
-        <h3>Unit ${escapeHtml(query)}</h3>
-        <p>
-          If you physically found this unit, add it to the Research List.
-          The app will not assume why it is missing from the report.
-        </p>
-        <div class="call-actions">
-          <button class="primary-btn" type="button" data-yard-add-unlisted-checked="${escapeHtml(query)}">
-            Add to Checked
-          </button>
-          <button class="secondary-btn" type="button" data-yard-add-unlisted-research="${escapeHtml(query)}">
-            Add to Research
-          </button>
-        </div>
-      </article>
-    `;
-
-    result.querySelector("[data-yard-add-unlisted-checked]")?.addEventListener("click", () => {
-      addUnlistedYardUnit(query, "checked");
-    });
-
-    result.querySelector("[data-yard-add-unlisted-research]")?.addEventListener("click", () => {
-      addUnlistedYardUnit(query, "research");
-    });
-
-    return;
-  }
-
-  if (matches.length > 1) {
-    result.innerHTML = `
-      <div class="yard-duplicate-note">
-        This unit appears ${matches.length} times in the imported report. Verify the page/details below.
-      </div>
-      ${matches.map((unit) => buildYardUnitResultCard(unit)).join("")}
-    `;
-  } else {
-    result.innerHTML = buildYardUnitResultCard(matches[0]);
-  }
-
-  attachYardUnitResultEvents();
+  if(q.length<4){result.innerHTML=`<div class="yard-search-hint">Enter at least 4 digits.</div>`;return;}
+  result.innerHTML=`<article class="yard-result-card yard-not-found-card"><span class="yard-result-badge not-found">NOT ON IMPORTED YARD CHECK</span><h3>Unit ${escapeHtml(q)}</h3><div class="call-actions"><button class="primary-btn" type="button" data-yard-add-unlisted-checked="${escapeHtml(q)}">Add as Checked</button><button class="secondary-btn" type="button" data-yard-add-unlisted-research="${escapeHtml(q)}">Add to Research</button></div></article>`;
+  result.querySelector("[data-yard-add-unlisted-checked]")?.addEventListener("click",()=>addUnlistedYardUnit(q,"checked"));
+  result.querySelector("[data-yard-add-unlisted-research]")?.addEventListener("click",()=>addUnlistedYardUnit(q,"research"));
 }
 
-function buildYardUnitResultCard(unit) {
-  return `
-    <article class="yard-result-card ${yardAttentionClass(unit)}" data-yard-result-id="${escapeHtml(unit.id)}">
-      <div class="yard-result-top">
-        <div>
-          <span class="yard-result-badge found">FOUND · PAGE ${unit.page || "?"}</span>
-          ${yardAttentionBadge(unit)}
-          <h3>Unit ${escapeHtml(unit.unitNumber)}</h3>
-        </div>
-        ${unit.page && unit.pageImageAvailable !== false ? `<button class="secondary-btn small-btn" type="button" data-yard-result-view-page="${unit.page}">View Page</button>` : ""}
-      </div>
-
-      <dl class="yard-detail-grid">
-        <div>
-          <dt>System Status</dt>
-          <dd>${escapeHtml(unit.vehicleStatus || "Not captured")}</dd>
-        </div>
-        <div>
-          <dt>Owning Location</dt>
-          <dd>${escapeHtml(unit.owningLocation || "Not captured")}</dd>
-        </div>
-        <div>
-          <dt>Vehicle Type</dt>
-          <dd>${escapeHtml(unit.vehicleType || "Not captured")}</dd>
-        </div>
-        <div>
-          <dt>Mileage</dt>
-          <dd>${escapeHtml(unit.mileage || "Not captured")}</dd>
-        </div>
-        <div>
-          <dt>PM Info</dt>
-          <dd>${escapeHtml(unit.pmInfo || "Not captured")}</dd>
-        </div>
-        <div>
-          <dt>Comments</dt>
-          <dd>${escapeHtml(unit.comments || "None captured")}</dd>
-        </div>
-      </dl>
-
-      <div class="yard-confidence-line">
-        Import confidence:
-        <strong>${escapeHtml(unit.confidence.toUpperCase())}</strong>
-      </div>
-
-      <span class="mini-label">WHERE DID YOU PHYSICALLY FIND IT?</span>
-      <div class="yard-location-grid">
-        ${["RL", "A", "B", "C", "D", "GY", "TRI", "SH", "Fuel Island", "Other"].map((location) => `
-          <button
-            class="yard-location-btn ${unit.physicalLocation === location ? "selected" : ""}"
-            type="button"
-            data-yard-location="${escapeHtml(location)}"
-            data-yard-id="${escapeHtml(unit.id)}"
-          >
-            <span>${escapeHtml(location)}</span>
-            ${yardLocationMeaning(location) ? `<small>${escapeHtml(yardLocationMeaning(location))}</small>` : ""}
-          </button>
-        `).join("")}
-      </div>
-
-      <label class="yard-note-label">
-        <span>Yard Note</span>
-        <input
-          type="text"
-          data-yard-note-input="${escapeHtml(unit.id)}"
-          value="${escapeHtml(unit.yardNote || "")}"
-          placeholder="Optional mismatch / follow-up note"
-        />
-      </label>
-
-      <div class="call-actions">
-        <button class="primary-btn" type="button" data-yard-toggle-checked="${escapeHtml(unit.id)}">
-          ${unit.checked ? "Uncheck" : "Mark Checked"}
-        </button>
-        <button class="secondary-btn" type="button" data-yard-toggle-research="${escapeHtml(unit.id)}">
-          ${unit.researchNeeded ? "Remove Research Flag" : "Mark for Research"}
-        </button>
-        <button class="secondary-btn danger-outline" type="button" data-yard-remove-unit="${escapeHtml(unit.id)}">
-          Remove Unit
-        </button>
-      </div>
-
-      <p class="yard-safety-note">
-        Physical row and system status are separate facts. This app does not automatically decide CI,
-        Deadline, Available, or another company action from the row alone.
-      </p>
-    </article>
-  `;
+function buildYardUnitResultCard(unit){
+  const vehicle=yardVehicleSummary(unit),customer=yardCustomerName(unit);
+  return `<article class="yard-result-card yard-field-result ${yardAttentionClass(unit)}" data-yard-result-id="${escapeHtml(unit.id)}">
+    <div class="yard-field-primary"><div><span class="yard-result-badge found">${unit.unlisted?"NOT ON IMPORT":"FOUND"}</span>${yardAttentionBadge(unit)}<h3>UNIT ${escapeHtml(unit.unitNumber)}</h3></div><div class="yard-page-hero"><span>PAGE</span><strong>${escapeHtml(unit.page||"—")}</strong></div></div>
+    <div class="yard-fast-facts"><div><span>STATUS</span><strong>${escapeHtml(unit.vehicleStatus||"Not captured")}</strong></div>${vehicle?`<div><span>VEHICLE</span><strong>${escapeHtml(vehicle)}</strong></div>`:""}${customer?`<div><span>CUSTOMER</span><strong>${escapeHtml(customer)}</strong></div>`:""}</div>
+    <div class="yard-field-actions-top">${unit.page&&unit.pageImageAvailable!==false?`<button class="secondary-btn small-btn" type="button" data-yard-result-view-page="${unit.page}">View Page</button>`:""}<button class="secondary-btn small-btn" type="button" data-yard-more="${escapeHtml(unit.id)}">More Details</button></div>
+    <span class="mini-label">WHERE DID YOU PHYSICALLY FIND IT?</span><div class="yard-location-grid">${["RL","A","B","C","D","GY","TRI","SH","Fuel Island","Other"].map(l=>`<button class="yard-location-btn ${unit.physicalLocation===l?"selected":""}" type="button" data-yard-location="${escapeHtml(l)}" data-yard-id="${escapeHtml(unit.id)}"><span>${escapeHtml(l)}</span>${yardLocationMeaning(l)?`<small>${escapeHtml(yardLocationMeaning(l))}</small>`:""}</button>`).join("")}</div>
+    <label class="yard-note-label"><span>Quick Yard Note</span><input type="text" data-yard-note-input="${escapeHtml(unit.id)}" value="${escapeHtml(unit.yardNote||"")}" placeholder="Only if needed" /></label>
+    <div class="yard-field-complete-actions"><button class="primary-btn" type="button" data-yard-toggle-checked="${escapeHtml(unit.id)}">${unit.checked?"Uncheck":"✓ Checked · Next Unit"}</button><button class="secondary-btn" type="button" data-yard-toggle-research="${escapeHtml(unit.id)}">${unit.researchNeeded?"Remove Research Flag":"⚑ Research"}</button></div>
+    <div class="yard-more-details hidden" data-yard-more-panel="${escapeHtml(unit.id)}"><dl class="yard-detail-grid"><div><dt>Owning Location</dt><dd>${escapeHtml(unit.owningLocation||"Not captured")}</dd></div><div><dt>Mileage</dt><dd>${escapeHtml(unit.mileage||"Not captured")}</dd></div><div><dt>PM Info</dt><dd>${escapeHtml(unit.pmInfo||"Not captured")}</dd></div><div><dt>Comments</dt><dd>${escapeHtml(unit.comments||"None captured")}</dd></div></dl><div class="call-actions"><button class="secondary-btn danger-outline" type="button" data-yard-remove-unit="${escapeHtml(unit.id)}">Remove Unit</button></div><p class="yard-safety-note">Physical row and system status are separate facts. The app does not decide a company action from the row alone.</p></div>
+  </article>`;
 }
 
 function attachYardUnitResultEvents() {
+  document.querySelectorAll("[data-yard-more]").forEach((button)=>{
+    button.addEventListener("click",()=>{const p=document.querySelector(`[data-yard-more-panel="${CSS.escape(button.dataset.yardMore)}"]`);p?.classList.toggle("hidden");button.textContent=p?.classList.contains("hidden")?"More Details":"Hide Details";});
+  });
   document.querySelectorAll("[data-yard-result-view-page]").forEach((button) => {
     button.addEventListener("click", () => {
       showYardOriginalPage(Number(button.dataset.yardResultViewPage));
@@ -1820,6 +1716,7 @@ function initializeYardCheck() {
   document.getElementById("yardListSearch")?.addEventListener("input", renderYardListBrowser);
 
   document.getElementById("yardPhotoInput")?.addEventListener("change", handleYardFileSelection);
+  document.getElementById("yardToggleImportBtn")?.addEventListener("click", toggleYardImportDetails);
   document.getElementById("analyzeYardPhotosBtn")?.addEventListener("click", analyzeYardPhotos);
   document.getElementById("clearYardSessionBtn")?.addEventListener("click", clearYardSession);
   document.getElementById("startYardModeBtn")?.addEventListener("click", startYardMode);
