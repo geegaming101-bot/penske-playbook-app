@@ -1820,6 +1820,118 @@ button {
   font-size: 0.72rem;
 }
 
+
+.live-ai-conversation {
+  border-top: 1px solid #dbeafe;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.live-ai-conversation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.live-ai-conversation-heading strong {
+  display: block;
+  margin-top: 2px;
+  color: #1f2937;
+  font-size: 0.86rem;
+}
+
+.live-ai-tip {
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.65rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.live-ai-thread {
+  display: grid;
+  gap: 7px;
+  max-height: 250px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.live-ai-empty {
+  border: 1px dashed #bfdbfe;
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: #64748b;
+  background: #f8fbff;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.live-ai-message {
+  max-width: 92%;
+  border-radius: 11px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.live-ai-message.user {
+  justify-self: end;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.live-ai-message.assistant {
+  justify-self: start;
+  background: #f8fafc;
+}
+
+.live-ai-message span {
+  display: block;
+  margin-bottom: 3px;
+  color: #64748b;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.live-ai-message p {
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.8rem;
+  line-height: 1.42;
+}
+
+.live-ai-reply-label {
+  display: grid;
+  gap: 5px;
+  color: #334155;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.live-ai-reply-label textarea {
+  min-height: 74px;
+  resize: vertical;
+}
+
+.live-ai-send-btn {
+  margin-top: 8px;
+  min-height: 42px;
+}
+
+@media (max-width: 600px) {
+  .live-ai-message {
+    max-width: 96%;
+  }
+
+  .live-ai-tip {
+    display: none;
+  }
+}
+
 .resolved-actions-row {
   display: grid;
   grid-template-columns: 1fr auto;
