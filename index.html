@@ -199,13 +199,32 @@
               <textarea id="callResolution" placeholder="Write the actual steps that worked."></textarea>
             </label>
 
+            <div class="resolution-review-actions">
+              <button id="reviewResolutionBtn" class="primary-btn" type="button">Review Resolution with AI</button>
+            </div>
+
+            <div id="resolutionReviewArea" class="resolution-review-area hidden">
+              <span class="mini-label">RESOLUTION CONVERSATION</span>
+              <div id="resolutionReviewThread" class="resolution-review-thread"></div>
+
+              <label>
+                Your reply
+                <textarea id="resolutionReviewReply" placeholder="Answer the AI's question or add what happened next."></textarea>
+              </label>
+
+              <div class="call-actions">
+                <button id="sendResolutionReplyBtn" class="secondary-btn" type="button">Send Reply</button>
+                <button id="finishResolutionReviewBtn" class="primary-btn hidden" type="button">Use Final Summary</button>
+              </div>
+            </div>
+
             <label>
               Lesson learned / remember next time
-              <textarea id="callLesson" placeholder="What should future-you remember if this happens again?"></textarea>
+              <textarea id="callLesson" placeholder="AI can suggest this after the review. You can edit it before saving."></textarea>
             </label>
 
             <div class="call-actions">
-              <button id="saveResolutionBtn" class="primary-btn" type="button">Save Resolution</button>
+              <button id="saveResolutionBtn" class="primary-btn" type="button" disabled>Approve &amp; Save Resolution</button>
               <button id="cancelResolutionBtn" class="secondary-btn" type="button">Cancel</button>
             </div>
           </div>
