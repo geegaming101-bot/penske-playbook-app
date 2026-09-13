@@ -33,40 +33,42 @@ exports.handler = async function handler(event) {
     process.env.OPENAI_MODEL ||
     "gpt-5.6-luna";
 
+  /*
+    Keep the AI response intentionally compact.
+    The first version asked for large JSON objects for every row, which can
+    take too long on a dense Yard Check page. This version asks for compact
+    arrays and then converts them back to the object shape the browser expects.
+  */
   const instructions = `
-You extract vehicle rows from ONE photographed Yard Check report page for a personal training tool.
+You are extracting printed vehicle rows from ONE photographed Yard Check report page.
 
-ACCURACY RULES:
-- Return only information that is visibly present on the printed report.
-- Never invent missing digits, statuses, locations, mileage, PM information, comments, or company procedure.
-- Handwriting, highlighting, folds, shadows, and marks may obscure fields. If a unit number is uncertain, use your best visible transcription and set confidence to "low".
-- If a field is not readable, return an empty string.
-- Ignore customer names and company/customer identifying information.
-- Do not infer physical yard row/location (RL, A, B, C, etc.) unless it is literally a printed report field. The user records physical location separately outside.
-- Preserve visible report status wording such as OUT, LOCAL, AVAILABLE, DEADLINE, WASH, PM, etc. Do not translate it into a different policy meaning.
-- One photographed page can contain many vehicle rows.
-- Do not include headers, totals, or blank rows as vehicles.
+Be fast and literal.
 
-Return ONLY valid JSON with this exact shape:
+Read ONLY printed report information. Do not invent missing digits or company procedure.
+Ignore customer/company names.
+Do not infer physical yard row (RL/A/B/C/etc.).
+If text is unreadable, use "".
+If the UNIT NUMBER is unclear, use your best transcription and confidence "low".
+
+Return ONLY compact valid JSON in this exact shape:
 {
-  "units": [
-    {
-      "unitNumber": "printed vehicle/unit number",
-      "owningLocation": "",
-      "vehicleStatus": "",
-      "vehicleType": "",
-      "mileage": "",
-      "pmInfo": "",
-      "comments": "",
-      "confidence": "high"
-    }
+  "rows": [
+    ["unitNumber","owningLocation","vehicleStatus","vehicleType","mileage","pmInfo","comments","confidence"]
   ]
 }
 
-CONFIDENCE:
-- high = unit number is clearly readable
-- medium = probably readable but one part is slightly unclear
-- low = unit number is obscured/ambiguous and must be checked against the original page
+Each row has exactly 8 values in this order:
+1 unit number
+2 owning location
+3 vehicle status
+4 vehicle type
+5 mileage
+6 concise PM info
+7 concise printed status/comment
+8 confidence: high, medium, or low
+
+Keep comments and PM info VERY SHORT.
+Do not explain anything outside the JSON.
 `.trim();
 
   const input = [
@@ -75,7 +77,7 @@ CONFIDENCE:
       content: [
         {
           type: "input_text",
-          text: `This is Yard Check report page ${pageNumber}. Extract the printed vehicle rows.`
+          text: `Yard Check page ${pageNumber}. Extract every clearly identifiable printed vehicle row.`
         },
         {
           type: "input_image",
@@ -86,20 +88,33 @@ CONFIDENCE:
   ];
 
   try {
-    const response = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model,
-        instructions,
-        input,
-        store: false,
-        max_output_tokens: 3500
-      })
-    });
+    const controller = new AbortController();
+    // Stop our upstream request slightly before Netlify's observed 30-second ceiling
+    // so the app can receive a useful error rather than an abrupt function timeout.
+    const timeout = setTimeout(() => controller.abort(), 27000);
+
+    let response;
+
+    try {
+      response = await fetch(OPENAI_URL, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          instructions,
+          input,
+          reasoning: { effort: "none" },
+          store: false,
+          max_output_tokens: 2200
+        })
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     const data = await response.json();
 
@@ -134,18 +149,21 @@ CONFIDENCE:
       });
     }
 
-    const units = Array.isArray(parsed.units)
-      ? parsed.units.map((unit) => ({
-          unitNumber: String(unit?.unitNumber || "").trim(),
-          owningLocation: String(unit?.owningLocation || "").trim(),
-          vehicleStatus: String(unit?.vehicleStatus || "").trim(),
-          vehicleType: String(unit?.vehicleType || "").trim(),
-          mileage: String(unit?.mileage || "").trim(),
-          pmInfo: String(unit?.pmInfo || "").trim(),
-          comments: String(unit?.comments || "").trim(),
-          confidence: normalizeConfidence(unit?.confidence)
-        }))
-      : [];
+    const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+
+    const units = rows
+      .filter((row) => Array.isArray(row) && row.length >= 1)
+      .map((row) => ({
+        unitNumber: clean(row[0]),
+        owningLocation: clean(row[1]),
+        vehicleStatus: clean(row[2]),
+        vehicleType: clean(row[3]),
+        mileage: clean(row[4]),
+        pmInfo: clean(row[5]),
+        comments: clean(row[6]),
+        confidence: normalizeConfidence(row[7])
+      }))
+      .filter((unit) => unit.unitNumber);
 
     return jsonResponse(200, {
       pageNumber,
@@ -153,11 +171,22 @@ CONFIDENCE:
       model
     });
   } catch (error) {
+    if (error?.name === "AbortError") {
+      return jsonResponse(504, {
+        error:
+          "This page took too long to analyze. Try a clearer/cropped photo of the report page."
+      });
+    }
+
     return jsonResponse(500, {
       error: "Could not reach OpenAI from the Yard Check function."
     });
   }
 };
+
+function clean(value) {
+  return String(value ?? "").trim();
+}
 
 function normalizeConfidence(value) {
   const confidence = String(value || "").toLowerCase();
