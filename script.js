@@ -2361,6 +2361,9 @@ const PLAYBOOK_BACKUP_VERSION = 1;
 let activeCallId = null;
 let callHistoryFilter = "all";
 let pendingBackupImport = null;
+let resolutionReviewMessages = [];
+let resolutionReviewApproved = false;
+
 
 function loadCalls() {
   try {
@@ -2674,6 +2677,7 @@ function openResolutionEditor(call) {
   if (resolution) resolution.value = call?.resolution || "";
   if (lesson) lesson.value = call?.lesson || "";
 
+  resetResolutionReview();
   panel?.classList.remove("hidden");
   panel?.scrollIntoView({ behavior: "smooth", block: "center" });
   resolution?.focus();
@@ -2708,6 +2712,147 @@ function reopenResolvedCall() {
   showCallMessage("Call reopened. You can add more notes and resolve it again when finished.", "good");
 }
 
+function resetResolutionReview() {
+  resolutionReviewMessages = [];
+  resolutionReviewApproved = false;
+
+  const area = document.getElementById("resolutionReviewArea");
+  const thread = document.getElementById("resolutionReviewThread");
+  const reply = document.getElementById("resolutionReviewReply");
+  const finish = document.getElementById("finishResolutionReviewBtn");
+  const save = document.getElementById("saveResolutionBtn");
+
+  area?.classList.add("hidden");
+  if (thread) thread.innerHTML = "";
+  if (reply) reply.value = "";
+  finish?.classList.add("hidden");
+  if (save) save.disabled = true;
+}
+
+function renderResolutionReviewThread() {
+  const thread = document.getElementById("resolutionReviewThread");
+  if (!thread) return;
+
+  thread.innerHTML = resolutionReviewMessages.map((message) => `
+    <div class="resolution-review-message ${message.role === "user" ? "user" : "assistant"}">
+      <span>${message.role === "user" ? "YOU" : "AI REVIEW"}</span>
+      <p>${escapeHtml(message.text).replace(/\n/g, "<br>")}</p>
+    </div>
+  `).join("");
+
+  thread.scrollTop = thread.scrollHeight;
+}
+
+async function requestResolutionReview(userReply = "") {
+  const resolution = document.getElementById("callResolution")?.value.trim() || "";
+
+  if (!resolution) {
+    showCallMessage("Write what happened first, then review the resolution with AI.", "warn");
+    document.getElementById("callResolution")?.focus();
+    return;
+  }
+
+  const call = saveCurrentCall({ silent: true });
+  if (!call) return;
+
+  if (userReply) {
+    resolutionReviewMessages.push({ role: "user", text: userReply });
+  }
+
+  const reviewButton = document.getElementById("reviewResolutionBtn");
+  const sendButton = document.getElementById("sendResolutionReplyBtn");
+  const area = document.getElementById("resolutionReviewArea");
+
+  reviewButton.disabled = true;
+  if (sendButton) sendButton.disabled = true;
+  area?.classList.remove("hidden");
+  clearCallMessage();
+
+  try {
+    const payload = {
+      mode: "resolution_review",
+      currentCall: {
+        customer: call.customer || "",
+        company: call.company || "",
+        reference: call.reference || "",
+        scratch: call.scratch || "",
+        notes: Array.isArray(call.notes) ? call.notes.map((note) => note.text) : []
+      },
+      proposedResolution: resolution,
+      proposedLesson: document.getElementById("callLesson")?.value.trim() || "",
+      reviewMessages: resolutionReviewMessages,
+      procedures: prepareProceduresForAi()
+    };
+
+    const response = await fetch("/.netlify/functions/call-assistant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Resolution review is unavailable.");
+
+    const review = String(data.review || data.advice || "").trim();
+    if (!review) throw new Error("The AI returned no resolution review.");
+
+    resolutionReviewMessages.push({ role: "assistant", text: review });
+    renderResolutionReviewThread();
+
+    const ready = data.readyToSave === true;
+    document.getElementById("finishResolutionReviewBtn")?.classList.toggle("hidden", !ready);
+
+    if (ready) {
+      const finalResolution = String(data.finalResolution || "").trim();
+      const finalLesson = String(data.lesson || "").trim();
+
+      if (finalResolution) document.getElementById("callResolution").value = finalResolution;
+      if (finalLesson) document.getElementById("callLesson").value = finalLesson;
+
+      resolutionReviewApproved = true;
+      const save = document.getElementById("saveResolutionBtn");
+      if (save) save.disabled = false;
+    } else {
+      resolutionReviewApproved = false;
+      const save = document.getElementById("saveResolutionBtn");
+      if (save) save.disabled = true;
+      document.getElementById("resolutionReviewReply")?.focus();
+    }
+  } catch (error) {
+    showCallMessage(error.message || "Could not review this resolution.", "warn");
+  } finally {
+    reviewButton.disabled = false;
+    if (sendButton) sendButton.disabled = false;
+  }
+}
+
+function startResolutionReview() {
+  resetResolutionReview();
+  requestResolutionReview();
+}
+
+function sendResolutionReviewReply() {
+  const reply = document.getElementById("resolutionReviewReply");
+  const text = reply?.value.trim() || "";
+
+  if (!text) {
+    showCallMessage("Type your reply to the AI first.", "warn");
+    reply?.focus();
+    return;
+  }
+
+  reply.value = "";
+  requestResolutionReview(text);
+}
+
+function useFinalResolutionSummary() {
+  resolutionReviewApproved = true;
+  const save = document.getElementById("saveResolutionBtn");
+  if (save) save.disabled = false;
+  showCallMessage("Final summary is ready. Review it, edit if needed, then approve and save.", "good");
+  document.getElementById("callResolution")?.focus();
+}
+
 function saveCallResolution() {
   const resolution = document.getElementById("callResolution")?.value.trim() || "";
   const lesson = document.getElementById("callLesson")?.value.trim() || "";
@@ -2715,6 +2860,11 @@ function saveCallResolution() {
   if (!resolution) {
     showCallMessage("Write how you actually solved the problem before resolving the call.", "warn");
     document.getElementById("callResolution")?.focus();
+    return;
+  }
+
+  if (!resolutionReviewApproved) {
+    showCallMessage("Review the resolution with AI and reach a final summary before saving.", "warn");
     return;
   }
 
@@ -3589,6 +3739,9 @@ function initializeCalls() {
   document.getElementById("askCallAiBtn")?.addEventListener("click", askAiForCallHelp);
   document.getElementById("copyAiCallBtn")?.addEventListener("click", copyAiCallAdvice);
   document.getElementById("findSimilarCallsBtn")?.addEventListener("click", renderSimilarResolvedCalls);
+  document.getElementById("reviewResolutionBtn")?.addEventListener("click", startResolutionReview);
+  document.getElementById("sendResolutionReplyBtn")?.addEventListener("click", sendResolutionReviewReply);
+  document.getElementById("finishResolutionReviewBtn")?.addEventListener("click", useFinalResolutionSummary);
   document.getElementById("saveResolutionBtn")?.addEventListener("click", saveCallResolution);
 
   document.getElementById("exportBackupBtn")?.addEventListener("click", exportPlaybookBackup);
