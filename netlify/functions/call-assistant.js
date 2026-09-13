@@ -27,6 +27,10 @@ exports.handler = async function handler(event) {
     return handleResolutionReview(body, currentCall, procedures);
   }
 
+  if (body.mode === "live_followup") {
+    return handleLiveFollowup(body, currentCall, procedures, similarCalls);
+  }
+
   const callText = [
     currentCall.customer,
     currentCall.company,
@@ -163,6 +167,114 @@ ${JSON.stringify(similarCalls, null, 2)}
     });
   }
 };
+
+
+async function handleLiveFollowup(body, currentCall, procedures, similarCalls) {
+  const liveMessages = Array.isArray(body.liveMessages) ? body.liveMessages : [];
+  const initialAdvice = String(body.initialAdvice || "").trim();
+
+  if (!liveMessages.length) {
+    return jsonResponse(400, { error: "Add an update from the live call first." });
+  }
+
+  const model = process.env.OPENAI_MODEL || "gpt-5.6-luna";
+
+  const instructions = `
+You are the user's LIVE CALL COPILOT inside a personal Penske training playbook.
+
+The call is still happening. Your job is to move the user toward the next useful action, one turn at a time.
+
+USE THESE SOURCES IN THIS ORDER:
+1. Documented PLAYBOOK procedures.
+2. Strongly similar RESOLVED PAST CALLS, clearly labeled as past examples.
+3. The facts the user gives during this live conversation.
+
+STRICT ACCURACY:
+- Never invent Penske click paths, company policy, phone numbers, approvals, dispatch rules, statuses, or system behavior.
+- Treat the Playbook as the only authority for internal Penske procedures.
+- A past call is an example, not policy.
+- If the Playbook does not document the required internal step, say that plainly and tell the user exactly what part needs a manager or experienced coworker.
+- Do not tell the user to perform an undocumented internal action just because it seems generally reasonable.
+- For an unsafe vehicle, do not encourage continued driving.
+- Do not expose chain-of-thought.
+
+LIVE-CONVERSATION STYLE:
+- Do NOT repeat the full dashboard or all prior advice.
+- Respond directly to the newest update.
+- Keep the answer very short and easy to scan.
+- Give the next action first.
+- Ask at most ONE question, and only when the answer changes the next action.
+- If a short script would help, include it naturally.
+- Avoid headings unless they make the answer clearer.
+- Usually stay under 90 words.
+- Do not ask "what happened next?" when you can already give a useful next step.
+- If the user reports the problem is solved, briefly confirm the factual outcome and tell them they can use Resolve Call to save what worked.
+
+Return ONLY valid JSON:
+{
+  "reply": "short live-call guidance"
+}
+`.trim();
+
+  const input = `
+CURRENT CALL
+${JSON.stringify(currentCall, null, 2)}
+
+INITIAL AI GUIDANCE
+${initialAdvice || "None saved."}
+
+LIVE CONVERSATION
+${JSON.stringify(liveMessages, null, 2)}
+
+DOCUMENTED PLAYBOOK
+${JSON.stringify(procedures, null, 2)}
+
+SIMILAR RESOLVED CALLS
+${JSON.stringify(similarCalls, null, 2)}
+`.trim();
+
+  try {
+    const response = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        instructions,
+        input,
+        store: false,
+        max_output_tokens: 220
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return jsonResponse(response.status, {
+        error: data?.error?.message || `OpenAI request failed with status ${response.status}.`
+      });
+    }
+
+    const raw = extractOutputText(data);
+    if (!raw) return jsonResponse(502, { error: "OpenAI returned no readable live guidance." });
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/^```json\s*/i, "").replace(/```$/i, "").trim());
+    } catch {
+      return jsonResponse(502, { error: "The live AI response was unreadable. Try sending the update again." });
+    }
+
+    const reply = String(parsed.reply || "").trim();
+    if (!reply) return jsonResponse(502, { error: "AI returned no next step." });
+
+    return jsonResponse(200, { reply, model });
+  } catch (error) {
+    return jsonResponse(500, { error: "Could not reach OpenAI from the Netlify function." });
+  }
+}
 
 async function handleResolutionReview(body, currentCall, procedures) {
   const proposedResolution = String(body.proposedResolution || "").trim();
