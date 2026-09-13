@@ -502,11 +502,13 @@ function renderYardDashboard() {
   const checked = session.units.filter((unit) => unit.checked).length;
   const research = session.units.filter((unit) => unit.researchNeeded).length;
   const remaining = Math.max(loaded - checked, 0);
+  const attention = session.units.filter((unit) => getYardAttentionStatus(unit)).length;
 
   setText("yardLoadedCount", loaded);
   setText("yardCheckedCount", checked);
   setText("yardResearchCount", research);
   setText("yardRemainingCount", remaining);
+  setText("yardAttentionCount", attention);
 }
 
 function setText(id, value) {
@@ -730,6 +732,7 @@ function renderYardImportReview() {
       <article class="yard-review-row">
         <div>
           <strong>Unit ${escapeHtml(unit.unitNumber)}</strong>
+          ${yardAttentionBadge(unit)}
           <span>Page ${unit.page} · ${escapeHtml(unit.confidence.toUpperCase())} confidence</span>
           <small>${escapeHtml([unit.vehicleStatus, unit.owningLocation].filter(Boolean).join(" · ") || "Verify against original page")}</small>
         </div>
@@ -862,10 +865,11 @@ function searchYardUnit() {
 
 function buildYardUnitResultCard(unit) {
   return `
-    <article class="yard-result-card" data-yard-result-id="${escapeHtml(unit.id)}">
+    <article class="yard-result-card ${yardAttentionClass(unit)}" data-yard-result-id="${escapeHtml(unit.id)}">
       <div class="yard-result-top">
         <div>
           <span class="yard-result-badge found">FOUND · PAGE ${unit.page || "?"}</span>
+          ${yardAttentionBadge(unit)}
           <h3>Unit ${escapeHtml(unit.unitNumber)}</h3>
         </div>
         ${unit.page ? `<button class="secondary-btn small-btn" type="button" data-yard-result-view-page="${unit.page}">View Page</button>` : ""}
@@ -1148,6 +1152,66 @@ function closeYardListBrowser() {
   document.getElementById("yardListBrowser")?.classList.add("hidden");
 }
 
+function getYardAttentionStatus(unit) {
+  const text = [
+    unit?.vehicleStatus,
+    unit?.comments,
+    unit?.pmInfo
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toUpperCase();
+
+  if (!text) return null;
+
+  if (/\bDEADLINE\b/.test(text)) {
+    return { key: "deadline", label: "DEADLINE" };
+  }
+
+  if (/\bACCIDENT\b/.test(text)) {
+    return { key: "accident", label: "ACCIDENT" };
+  }
+
+  if (
+    /\bPREVENTIVE MAINTENANCE\b/.test(text) ||
+    /\bPREVENTATIVE MAINTENANCE\b/.test(text) ||
+    /(^|[^A-Z])PM([^A-Z]|$)/.test(text)
+  ) {
+    return { key: "pm", label: "PM" };
+  }
+
+  if (/\bAVAILABLE NOW\b/.test(text)) {
+    return { key: "available", label: "AVAILABLE NOW" };
+  }
+
+  if (/\bAVAILABLE\b/.test(text)) {
+    return { key: "available", label: "AVAILABLE" };
+  }
+
+  if (/\bWASH\b/.test(text)) {
+    return { key: "wash", label: "WASH" };
+  }
+
+  return null;
+}
+
+function yardAttentionClass(unit) {
+  const status = getYardAttentionStatus(unit);
+  return status ? `yard-attention-${status.key}` : "";
+}
+
+function yardAttentionBadge(unit) {
+  const status = getYardAttentionStatus(unit);
+
+  if (!status) return "";
+
+  return `
+    <span class="yard-attention-badge ${escapeHtml(status.key)}">
+      ${escapeHtml(status.label)}
+    </span>
+  `;
+}
+
 function getYardListUnits(session, filter) {
   if (filter === "checked") {
     return session.units.filter((unit) => unit.checked);
@@ -1161,6 +1225,10 @@ function getYardListUnits(session, filter) {
     return session.units.filter((unit) => !unit.checked);
   }
 
+  if (filter === "attention") {
+    return session.units.filter((unit) => getYardAttentionStatus(unit));
+  }
+
   return session.units;
 }
 
@@ -1169,7 +1237,8 @@ function yardListFilterTitle(filter) {
     loaded: "Loaded Units",
     checked: "Checked Units",
     research: "Research Units",
-    remaining: "Remaining Units"
+    remaining: "Remaining Units",
+    attention: "Attention Units"
   };
 
   return titles[filter] || "Loaded Units";
@@ -1209,7 +1278,7 @@ function renderYardListBrowser() {
 
   target.innerHTML = units
     .map((unit) => `
-      <article class="yard-list-row">
+      <article class="yard-list-row ${yardAttentionClass(unit)}">
         <button
           class="yard-list-open-unit"
           type="button"
@@ -1230,6 +1299,7 @@ function renderYardListBrowser() {
           </div>
 
           <div class="yard-list-row-badges">
+            ${yardAttentionBadge(unit)}
             ${unit.checked ? `<span class="yard-mini-badge checked">Checked</span>` : ""}
             ${unit.researchNeeded ? `<span class="yard-mini-badge research">Research</span>` : ""}
           </div>
@@ -1288,7 +1358,7 @@ function renderYardResearchList() {
 
   target.innerHTML = research
     .map((unit) => `
-      <article class="yard-research-row">
+      <article class="yard-research-row ${yardAttentionClass(unit)}">
         <div>
           <strong>Unit ${escapeHtml(unit.unitNumber)}</strong>
           <span>
