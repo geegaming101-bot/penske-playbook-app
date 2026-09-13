@@ -332,18 +332,65 @@ function openYardCheckWorkspace() {
   document.getElementById("yardCheckWorkspace")?.classList.remove("hidden");
   document.getElementById("callsModeBtn")?.classList.remove("active");
 
+  closeYardImportScreen(false);
+  document.getElementById("yardModePanel")?.classList.remove("hidden");
+
   renderYardDashboard();
   renderYardSelectedFiles();
   renderYardImportReview();
   renderYardResearchList();
-
-  const session = loadYardSession();
-  if (session.units.length) {
-    document.getElementById("yardModePanel")?.classList.remove("hidden");
-  }
+  renderYardListBrowser();
+  renderYardActiveSessionSummary();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
+
+function openYardImportScreen() {
+  document.getElementById("yardImportScreen")?.classList.remove("hidden");
+  document.getElementById("yardModePanel")?.classList.add("hidden");
+  document.getElementById("yardListBrowser")?.classList.add("hidden");
+  document.getElementById("yardSessionOptions")?.classList.add("hidden");
+  renderYardSelectedFiles();
+  renderYardImportReview();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function closeYardImportScreen(scrollToSearch = true) {
+  document.getElementById("yardImportScreen")?.classList.add("hidden");
+  document.getElementById("yardModePanel")?.classList.remove("hidden");
+  document.getElementById("yardSessionOptions")?.classList.add("hidden");
+  renderYardDashboard();
+  renderYardActiveSessionSummary();
+
+  if (scrollToSearch) {
+    document.getElementById("yardModePanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const input = document.getElementById("yardUnitSearch");
+    if (input) setTimeout(() => input.focus(), 120);
+  }
+}
+
+function clearSelectedYardFiles() {
+  yardSelectedSourceFiles = [];
+  const input = document.getElementById("yardPhotoInput");
+  if (input) input.value = "";
+  renderYardSelectedFiles();
+  setYardStatus("Selected files cleared. Your active Yard Check was not changed.", "good");
+}
+
+function renderYardActiveSessionSummary() {
+  const session = loadYardSession();
+  const el = document.getElementById("yardActiveSessionSummary");
+  if (!el) return;
+  if (!session.units.length) {
+    el.textContent = "No active Yard Check. Use Import / Replace Yard Check to load one.";
+    return;
+  }
+  const checked = session.units.filter((u) => u.checked).length;
+  const research = session.units.filter((u) => u.researchNeeded).length;
+  const remaining = session.units.filter((u) => !u.checked).length;
+  el.textContent = `${session.units.length} loaded · ${checked} checked · ${research} research · ${remaining} remaining · ${session.sourcePages || 0} pages`;
+}
+
 
 function openYardDb() {
   return new Promise((resolve, reject) => {
@@ -1017,6 +1064,12 @@ async function analyzeYardPhotos() {
       `Imported ${collectedUnits.length} unit row${collectedUnits.length === 1 ? "" : "s"} across ${session.sourcePages} Yard page${session.sourcePages === 1 ? "" : "s"}. ${needsReview} need${needsReview === 1 ? "s" : ""} extra verification.`,
       "good"
     );
+    yardSelectedSourceFiles = [];
+    const yardInput = document.getElementById("yardPhotoInput");
+    if (yardInput) yardInput.value = "";
+    renderYardSelectedFiles();
+    document.getElementById("yardImportReview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    renderYardActiveSessionSummary();
   } catch (error) {
     setYardStatus(error.message || "Yard Check import failed.", "warn");
   } finally {
@@ -1148,11 +1201,13 @@ function yardMatches(session,q){
   return [];
 }
 function startYardMode(){
-  const session=loadYardSession();if(!session.units.length){setYardStatus("Import a Yard Check first.","warn");return;}
-  const panel=document.getElementById("yardModePanel"),input=document.getElementById("yardUnitSearch"),result=document.getElementById("yardUnitResult");
-  panel?.classList.remove("hidden");collapseYardImport();renderYardDashboard();renderYardResearchList();renderYardListBrowser();
-  panel?.scrollIntoView({behavior:"smooth",block:"start"});if(result)result.innerHTML="";
-  if(input){input.value="";setTimeout(()=>input.focus(),100);}
+  const session = loadYardSession();
+  if (!session.units.length) {
+    setYardStatus("Import a Yard Check first.", "warn");
+    return;
+  }
+  clearSelectedYardFiles();
+  closeYardImportScreen(true);
 }
 
 function searchYardUnit(){
@@ -1699,6 +1754,8 @@ async function clearYardSession() {
   renderYardDashboard();
   renderYardImportReview();
   renderYardResearchList();
+  renderYardActiveSessionSummary();
+  document.getElementById("yardModePanel")?.classList.remove("hidden");
 }
 
 function initializeYardCheck() {
@@ -1707,6 +1764,17 @@ function initializeYardCheck() {
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   }
   document.getElementById("yardBackBtn")?.addEventListener("click", showHowToMode);
+  document.getElementById("openYardImportBtn")?.addEventListener("click", openYardImportScreen);
+  document.getElementById("yardImportBackBtn")?.addEventListener("click", () => closeYardImportScreen(false));
+  document.getElementById("clearYardFilesBtn")?.addEventListener("click", clearSelectedYardFiles);
+  document.getElementById("yardSessionOptionsBtn")?.addEventListener("click", () => {
+    document.getElementById("yardSessionOptions")?.classList.remove("hidden");
+    renderYardActiveSessionSummary();
+  });
+  document.getElementById("closeYardSessionOptionsBtn")?.addEventListener("click", () => {
+    document.getElementById("yardSessionOptions")?.classList.add("hidden");
+  });
+  document.getElementById("dashboardClearYardSessionBtn")?.addEventListener("click", clearYardSession);
   document.querySelectorAll("[data-yard-filter]").forEach((button) => {
     button.addEventListener("click", () => {
       openYardListBrowser(button.dataset.yardFilter);
@@ -1716,9 +1784,7 @@ function initializeYardCheck() {
   document.getElementById("yardListSearch")?.addEventListener("input", renderYardListBrowser);
 
   document.getElementById("yardPhotoInput")?.addEventListener("change", handleYardFileSelection);
-  document.getElementById("yardToggleImportBtn")?.addEventListener("click", toggleYardImportDetails);
   document.getElementById("analyzeYardPhotosBtn")?.addEventListener("click", analyzeYardPhotos);
-  document.getElementById("clearYardSessionBtn")?.addEventListener("click", clearYardSession);
   document.getElementById("startYardModeBtn")?.addEventListener("click", startYardMode);
   document.getElementById("yardUnitSearch")?.addEventListener("input", searchYardUnit);
   document.getElementById("closeYardPageModalBtn")?.addEventListener("click", closeYardPageModal);
@@ -1732,6 +1798,8 @@ function initializeYardCheck() {
   renderYardSelectedFiles();
   renderYardDashboard();
   renderYardResearchList();
+  renderYardActiveSessionSummary();
+  document.getElementById("yardModePanel")?.classList.remove("hidden");
 }
 
 document.addEventListener("DOMContentLoaded", initializeYardCheck);
