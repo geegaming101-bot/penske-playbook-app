@@ -293,6 +293,113 @@
       </div>
     </section>
 
+
+    <section id="yardCheckWorkspace" class="hidden">
+      <div class="section-intro yard-check-heading-row">
+        <div>
+          <span class="eyebrow dark">HOW-TO #10 · YARD</span>
+          <h2>Yard Check Vehicle Reconciliation</h2>
+          <p>Import report-page photos, verify the extracted units, then use Yard Mode outside.</p>
+        </div>
+        <button id="yardBackBtn" class="secondary-btn" type="button">← Back to How-To</button>
+      </div>
+
+      <div class="yard-stats" aria-label="Yard check progress">
+        <div class="yard-stat-card">
+          <strong id="yardLoadedCount">0</strong>
+          <span>Loaded</span>
+        </div>
+        <div class="yard-stat-card">
+          <strong id="yardCheckedCount">0</strong>
+          <span>Checked</span>
+        </div>
+        <div class="yard-stat-card">
+          <strong id="yardResearchCount">0</strong>
+          <span>Research</span>
+        </div>
+        <div class="yard-stat-card">
+          <strong id="yardRemainingCount">0</strong>
+          <span>Remaining</span>
+        </div>
+      </div>
+
+      <section class="yard-card">
+        <span class="mini-label">STEP 1 · IMPORT</span>
+        <h3>Upload Yard Check Photos</h3>
+        <p class="yard-muted">
+          Select all report pages together and keep them in page order.
+          Photos are processed one page at a time so large reports are less likely to fail.
+        </p>
+
+        <label class="yard-file-picker">
+          <span>Select report photos</span>
+          <input
+            id="yardPhotoInput"
+            type="file"
+            accept="image/*"
+            multiple
+          />
+        </label>
+
+        <div id="yardSelectedFiles" class="yard-selected-files"></div>
+
+        <div class="call-actions">
+          <button id="analyzeYardPhotosBtn" class="primary-btn" type="button">Analyze Photos</button>
+          <button id="clearYardSessionBtn" class="secondary-btn danger-outline" type="button">Clear Yard Session</button>
+        </div>
+
+        <div id="yardImportStatus" class="yard-status hidden"></div>
+      </section>
+
+      <section id="yardImportReview" class="yard-card hidden">
+        <span class="mini-label">STEP 2 · VERIFY</span>
+        <h3>Import Review</h3>
+        <p class="yard-muted">
+          AI extraction is a draft. Review anything marked medium or low confidence before relying on it outside.
+        </p>
+        <div id="yardReviewSummary" class="yard-review-summary"></div>
+        <div id="yardReviewList" class="yard-review-list"></div>
+        <button id="startYardModeBtn" class="primary-btn yard-wide-btn" type="button">Start Yard Mode</button>
+      </section>
+
+      <section id="yardModePanel" class="yard-card hidden">
+        <span class="mini-label">STEP 3 · YARD MODE</span>
+        <h3>Search a Unit</h3>
+        <p class="yard-muted">Type the unit number you physically see.</p>
+
+        <label class="yard-search-wrap" for="yardUnitSearch">
+          <input
+            id="yardUnitSearch"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="Enter unit number"
+          />
+        </label>
+
+        <div id="yardUnitResult" class="yard-unit-result"></div>
+      </section>
+
+      <section class="yard-card">
+        <span class="mini-label">FOLLOW-UP</span>
+        <h3>Research List</h3>
+        <p class="yard-muted">
+          Units you flag here still need your normal documented research process.
+        </p>
+        <div id="yardResearchList" class="yard-research-list"></div>
+      </section>
+
+      <div id="yardPageModal" class="yard-page-modal hidden" role="dialog" aria-modal="true" aria-label="Original Yard Check page">
+        <div class="yard-page-modal-card">
+          <div class="yard-page-modal-top">
+            <strong id="yardPageModalTitle">Original Page</strong>
+            <button id="closeYardPageModalBtn" class="secondary-btn small-btn" type="button">Close</button>
+          </div>
+          <img id="yardPageModalImage" alt="Original Yard Check report page" />
+        </div>
+      </div>
+    </section>
+
     <section id="trainingView" class="hidden">
       <div class="section-intro">
         <span class="eyebrow dark">TRAINING MODE</span>
