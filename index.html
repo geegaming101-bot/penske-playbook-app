@@ -138,11 +138,35 @@
 
             <div id="aiCallResult" class="ai-call-result hidden">
               <div class="ai-result-heading">
-                <strong>AI Recommendation</strong>
+                <div>
+                  <strong>Live Call Guidance</strong>
+                  <span id="aiMatchBadge" class="ai-match-badge hidden">Strong past match found</span>
+                </div>
                 <button id="copyAiCallBtn" class="secondary-btn small-btn" type="button">Copy</button>
               </div>
-              <pre id="aiCallText"></pre>
+              <div id="aiCallCards" class="ai-call-cards"></div>
+              <pre id="aiCallText" class="ai-raw-text hidden"></pre>
             </div>
+          </section>
+
+          <section class="experience-match-panel">
+            <div class="calls-panel-heading compact">
+              <div>
+                <span class="mini-label">PAST EXPERIENCE</span>
+                <h3>Similar Resolved Calls</h3>
+              </div>
+              <span class="local-only-badge">Local • no AI call</span>
+            </div>
+
+            <p class="experience-match-note">
+              Search your resolved calls for problems that look like the current one. This uses only saved call history on this device.
+            </p>
+
+            <button id="findSimilarCallsBtn" class="secondary-btn experience-find-btn" type="button">
+              Find Similar Past Calls
+            </button>
+
+            <div id="similarCallResults" class="similar-call-results hidden"></div>
           </section>
 
           <div class="call-timeline-wrap">
