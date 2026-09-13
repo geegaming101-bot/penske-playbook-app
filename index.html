@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#111827" />
+  <title>Penske Playbook</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <span class="eyebrow">PERSONAL TRAINING APP</span>
+      <h1>Penske Playbook</h1>
+      <p>Quick-reference procedures, scripts, call history, and training scenarios.</p>
+
+      <div class="mode-tabs" role="tablist" aria-label="App sections">
+        <button id="playbookModeBtn" class="mode-btn active" type="button">Playbook</button>
+        <button id="callsModeBtn" class="mode-btn" type="button">Calls</button>
+        <button id="trainingModeBtn" class="mode-btn" type="button">Training</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section id="playbookHome">
+      <div class="section-intro">
+        <span class="eyebrow dark">YOUR DIGITAL NOTEBOOK</span>
+        <h2>What do you need?</h2>
+        <p>Search the playbook or choose a procedure.</p>
+      </div>
+
+      <label class="search-wrap" for="procedureSearch">
+        <span class="sr-only">Search procedures</span>
+        <input
+          id="procedureSearch"
+          type="search"
+          placeholder="Search procedures..."
+          autocomplete="off"
+        />
+      </label>
+
+      <div id="procedureGrid" class="procedure-grid"></div>
+    </section>
+
+    <section id="procedureView" class="hidden">
+      <button id="backToPlaybookBtn" class="back-btn" type="button">← Back to Playbook</button>
+
+      <article class="procedure-detail">
+        <div class="procedure-detail-heading">
+          <span id="procedureNumber" class="procedure-number"></span>
+          <div>
+            <h2 id="procedureTitle"></h2>
+            <p id="procedureDescription"></p>
+          </div>
+        </div>
+
+        <div id="procedureContent"></div>
+      </article>
+    </section>
+
+    <section id="callsView" class="hidden">
+      <div class="section-intro">
+        <span class="eyebrow dark">CALLS / SCRATCH</span>
+        <h2>Call Experience Library</h2>
+        <p>Keep running call notes, resolve the problem, and save what worked for next time.</p>
+      </div>
+
+      <div class="calls-layout">
+        <div class="calls-panel">
+          <div class="calls-panel-heading">
+            <div>
+              <span class="mini-label">CURRENT CALL</span>
+              <h3 id="currentCallHeading">New Call</h3>
+            </div>
+            <span id="currentCallStatus" class="call-status open">OPEN</span>
+          </div>
+
+          <div class="call-quick-fields">
+            <label>
+              Customer
+              <input id="callCustomer" type="text" placeholder="Optional" autocomplete="off" />
+            </label>
+
+            <label>
+              Company
+              <input id="callCompany" type="text" placeholder="Optional" autocomplete="off" />
+            </label>
+
+            <label>
+              Unit / Reservation #
+              <input id="callReference" type="text" placeholder="Optional" autocomplete="off" />
+            </label>
+
+            <label>
+              Phone
+              <input id="callPhone" type="text" placeholder="Only if needed" autocomplete="off" />
+            </label>
+          </div>
+
+          <label class="call-textarea-label" for="callScratchpad">
+            Running Notes
+            <span>Type naturally while the call is happening. Messy notes are fine.</span>
+          </label>
+          <textarea
+            id="callScratchpad"
+            class="call-scratchpad"
+            placeholder="Example: Customer says unit isn't at the location... needs it today... reservation showing somewhere else..."
+          ></textarea>
+
+          <div class="call-actions">
+            <button id="saveCallBtn" class="primary-btn" type="button">Save Call</button>
+            <button id="addCallNoteBtn" class="secondary-btn" type="button">Add Note</button>
+            <button id="newCallBtn" class="secondary-btn" type="button">New Call</button>
+          </div>
+
+          <div id="callMessage" class="hidden"></div>
+
+          <section class="ai-call-panel">
+            <div class="calls-panel-heading compact">
+              <div>
+                <span class="mini-label">AI CALL ASSISTANT</span>
+                <h3>Help Me Solve This Call</h3>
+              </div>
+              <span class="ai-status-badge">Uses Playbook + past calls</span>
+            </div>
+
+            <p class="ai-call-note">
+              The assistant uses your current notes, documented Playbook procedures, and similar resolved calls.
+              It should not invent internal steps.
+            </p>
+
+            <button id="askCallAiBtn" class="ai-help-btn" type="button">
+              Help Me Solve This Call
+            </button>
+
+            <div id="aiCallLoading" class="ai-loading hidden">Thinking through this call...</div>
+
+            <div id="aiCallResult" class="ai-call-result hidden">
+              <div class="ai-result-heading">
+                <strong>AI Recommendation</strong>
+                <button id="copyAiCallBtn" class="secondary-btn small-btn" type="button">Copy</button>
+              </div>
+              <pre id="aiCallText"></pre>
+            </div>
+          </section>
+
+          <div class="call-timeline-wrap">
+            <div class="calls-panel-heading compact">
+              <div>
+                <span class="mini-label">CONVERSATION</span>
+                <h3>Call Timeline</h3>
+              </div>
+            </div>
+            <div id="callTimeline" class="call-timeline"></div>
+          </div>
+
+          <div id="resolutionPanel" class="resolution-panel hidden">
+            <span class="mini-label">CLOSE THE LOOP</span>
+            <h3>Resolve This Call</h3>
+
+            <label>
+              How did you solve it?
+              <textarea id="callResolution" placeholder="Write the actual steps that worked."></textarea>
+            </label>
+
+            <label>
+              Lesson learned / remember next time
+              <textarea id="callLesson" placeholder="What should future-you remember if this happens again?"></textarea>
+            </label>
+
+            <div class="call-actions">
+              <button id="saveResolutionBtn" class="primary-btn" type="button">Save Resolution</button>
+              <button id="cancelResolutionBtn" class="secondary-btn" type="button">Cancel</button>
+            </div>
+          </div>
+
+          <div class="resolved-actions-row">
+            <button id="resolveCallBtn" class="resolve-call-btn" type="button">Resolve Call</button>
+            <button id="editResolutionBtn" class="secondary-btn hidden" type="button">Edit Resolution</button>
+          </div>
+        </div>
+
+        <aside class="calls-panel history-panel">
+          <div class="calls-panel-heading">
+            <div>
+              <span class="mini-label">SAVED ON THIS DEVICE</span>
+              <h3>Call History</h3>
+            </div>
+            <span id="callCount" class="count-pill">0</span>
+          </div>
+
+          <input
+            id="callHistorySearch"
+            class="call-history-search"
+            type="search"
+            placeholder="Search old calls..."
+            autocomplete="off"
+          />
+
+          <div class="call-filter-row">
+            <button class="call-filter active" data-call-filter="all" type="button">All</button>
+            <button class="call-filter" data-call-filter="open" type="button">Open</button>
+            <button class="call-filter" data-call-filter="resolved" type="button">Resolved</button>
+          </div>
+
+          <div id="callHistoryList" class="call-history-list"></div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="trainingView" class="hidden">
+      <div class="section-intro">
+        <span class="eyebrow dark">TRAINING MODE</span>
+        <h2>Test what you know.</h2>
+        <p>Work through realistic situations based on your documented procedures.</p>
+      </div>
+
+      <div class="training-card">
+        <div class="training-topline">
+          <span id="scenarioCategory" class="scenario-category"></span>
+          <span id="scoreDisplay" class="score-display">Score: 0 / 0</span>
+        </div>
+
+        <h3 id="scenarioQuestion"></h3>
+        <div id="scenarioAnswers" class="scenario-answers"></div>
+        <div id="scenarioFeedback" class="scenario-feedback hidden"></div>
+
+        <div class="training-actions">
+          <button id="nextScenarioBtn" class="primary-btn" type="button">Next Scenario</button>
+          <button id="resetScoreBtn" class="secondary-btn" type="button">Reset Score</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Personal training reference. Do not store customer-sensitive information unless necessary and permitted.</p>
+  </footer>
+
+  <script src="data/procedures.js"></script>
+  <script src="data/scenarios.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
