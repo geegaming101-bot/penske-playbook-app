@@ -291,6 +291,7 @@ const YARD_SESSION_KEY = "penskeYardCheckSessionV1";
 const YARD_DB_NAME = "PenskePlaybookYardCheck";
 const YARD_DB_VERSION = 1;
 const YARD_PAGE_STORE = "yardPages";
+let yardActiveListFilter = "loaded";
 
 function makeEmptyYardSession() {
   return {
@@ -315,6 +316,7 @@ function saveYardSession(session) {
   localStorage.setItem(YARD_SESSION_KEY, JSON.stringify(session));
   renderYardDashboard();
   renderYardResearchList();
+  renderYardListBrowser();
 }
 
 function openYardCheckWorkspace() {
@@ -832,14 +834,15 @@ function buildYardUnitResultCard(unit) {
 
       <span class="mini-label">WHERE DID YOU PHYSICALLY FIND IT?</span>
       <div class="yard-location-grid">
-        ${["RL", "A", "B", "C", "Fuel Island", "Other"].map((location) => `
+        ${["RL", "A", "B", "C", "D", "GY", "TRI", "SH", "Fuel Island", "Other"].map((location) => `
           <button
             class="yard-location-btn ${unit.physicalLocation === location ? "selected" : ""}"
             type="button"
             data-yard-location="${escapeHtml(location)}"
             data-yard-id="${escapeHtml(unit.id)}"
           >
-            ${escapeHtml(location)}
+            <span>${escapeHtml(location)}</span>
+            ${yardLocationMeaning(location) ? `<small>${escapeHtml(yardLocationMeaning(location))}</small>` : ""}
           </button>
         `).join("")}
       </div>
@@ -979,6 +982,158 @@ function addUnlistedYardUnit(unitNumber) {
   searchYardUnit();
 }
 
+
+function yardLocationMeaning(location) {
+  const meanings = {
+    "RL": "Ready Line",
+    "GY": "Graveyard",
+    "SH": "Shop"
+  };
+
+  return meanings[location] || "";
+}
+
+function openYardListBrowser(filter) {
+  yardActiveListFilter = filter || "loaded";
+
+  const panel = document.getElementById("yardListBrowser");
+  const search = document.getElementById("yardListSearch");
+
+  panel?.classList.remove("hidden");
+
+  if (search) {
+    search.value = "";
+  }
+
+  renderYardListBrowser();
+  panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closeYardListBrowser() {
+  document.getElementById("yardListBrowser")?.classList.add("hidden");
+}
+
+function getYardListUnits(session, filter) {
+  if (filter === "checked") {
+    return session.units.filter((unit) => unit.checked);
+  }
+
+  if (filter === "research") {
+    return session.units.filter((unit) => unit.researchNeeded);
+  }
+
+  if (filter === "remaining") {
+    return session.units.filter((unit) => !unit.checked);
+  }
+
+  return session.units;
+}
+
+function yardListFilterTitle(filter) {
+  const titles = {
+    loaded: "Loaded Units",
+    checked: "Checked Units",
+    research: "Research Units",
+    remaining: "Remaining Units"
+  };
+
+  return titles[filter] || "Loaded Units";
+}
+
+function renderYardListBrowser() {
+  const panel = document.getElementById("yardListBrowser");
+  const target = document.getElementById("yardListResults");
+  const title = document.getElementById("yardListTitle");
+  const search = document.getElementById("yardListSearch");
+
+  if (!panel || !target || !title) return;
+  if (panel.classList.contains("hidden")) return;
+
+  const session = loadYardSession();
+  const query = search?.value.trim().toLowerCase() || "";
+
+  let units = getYardListUnits(session, yardActiveListFilter);
+
+  if (query) {
+    units = units.filter((unit) =>
+      String(unit.unitNumber || "").toLowerCase().includes(query)
+    );
+  }
+
+  title.textContent = `${yardListFilterTitle(yardActiveListFilter)} · ${units.length}`;
+
+  if (!units.length) {
+    target.innerHTML = `
+      <div class="yard-empty-state">
+        <strong>No matching units.</strong>
+        <span>Try another filter or unit number.</span>
+      </div>
+    `;
+    return;
+  }
+
+  target.innerHTML = units
+    .map((unit) => `
+      <article class="yard-list-row">
+        <button
+          class="yard-list-open-unit"
+          type="button"
+          data-yard-list-open="${escapeHtml(unit.id)}"
+        >
+          <div class="yard-list-row-main">
+            <strong>Unit ${escapeHtml(unit.unitNumber)}</strong>
+            <span>
+              ${unit.page ? `Page ${unit.page}` : "Not on report"}
+              · ${escapeHtml(unit.physicalLocation || "No physical location")}
+            </span>
+            <small>
+              ${escapeHtml(
+                unit.vehicleStatus ||
+                (unit.researchNeeded ? "Research needed" : unit.checked ? "Checked" : "Remaining")
+              )}
+            </small>
+          </div>
+
+          <div class="yard-list-row-badges">
+            ${unit.checked ? `<span class="yard-mini-badge checked">Checked</span>` : ""}
+            ${unit.researchNeeded ? `<span class="yard-mini-badge research">Research</span>` : ""}
+          </div>
+        </button>
+      </article>
+    `)
+    .join("");
+
+  target.querySelectorAll("[data-yard-list-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openYardUnitFromList(button.dataset.yardListOpen);
+    });
+  });
+}
+
+function openYardUnitFromList(unitId) {
+  const session = loadYardSession();
+  const unit = session.units.find((item) => item.id === unitId);
+
+  if (!unit) return;
+
+  const panel = document.getElementById("yardModePanel");
+  const input = document.getElementById("yardUnitSearch");
+  const result = document.getElementById("yardUnitResult");
+
+  panel?.classList.remove("hidden");
+
+  if (input) {
+    input.value = unit.unitNumber;
+  }
+
+  if (result) {
+    result.innerHTML = buildYardUnitResultCard(unit);
+  }
+
+  attachYardUnitResultEvents();
+  panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderYardResearchList() {
   const target = document.getElementById("yardResearchList");
   if (!target) return;
@@ -1007,10 +1162,19 @@ function renderYardResearchList() {
           </span>
           <small>${escapeHtml(unit.yardNote || unit.vehicleStatus || "Research needed")}</small>
         </div>
-        ${unit.page ? `<button class="secondary-btn small-btn" type="button" data-yard-research-view-page="${unit.page}">View Page</button>` : ""}
+        <div class="yard-row-actions">
+          <button class="secondary-btn small-btn" type="button" data-yard-research-open="${escapeHtml(unit.id)}">Open Unit</button>
+          ${unit.page ? `<button class="secondary-btn small-btn" type="button" data-yard-research-view-page="${unit.page}">View Page</button>` : ""}
+        </div>
       </article>
     `)
     .join("");
+
+  target.querySelectorAll("[data-yard-research-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openYardUnitFromList(button.dataset.yardResearchOpen);
+    });
+  });
 
   target.querySelectorAll("[data-yard-research-view-page]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1074,6 +1238,7 @@ async function clearYardSession() {
   document.getElementById("yardImportStatus")?.classList.add("hidden");
   document.getElementById("yardImportReview")?.classList.add("hidden");
   document.getElementById("yardModePanel")?.classList.add("hidden");
+  document.getElementById("yardListBrowser")?.classList.add("hidden");
 
   const result = document.getElementById("yardUnitResult");
   if (result) result.innerHTML = "";
@@ -1086,6 +1251,14 @@ async function clearYardSession() {
 
 function initializeYardCheck() {
   document.getElementById("yardBackBtn")?.addEventListener("click", showHowToMode);
+  document.querySelectorAll("[data-yard-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openYardListBrowser(button.dataset.yardFilter);
+    });
+  });
+  document.getElementById("closeYardListBtn")?.addEventListener("click", closeYardListBrowser);
+  document.getElementById("yardListSearch")?.addEventListener("input", renderYardListBrowser);
+
   document.getElementById("yardPhotoInput")?.addEventListener("change", renderYardSelectedFiles);
   document.getElementById("analyzeYardPhotosBtn")?.addEventListener("click", analyzeYardPhotos);
   document.getElementById("clearYardSessionBtn")?.addEventListener("click", clearYardSession);
