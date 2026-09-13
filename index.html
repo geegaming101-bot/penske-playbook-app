@@ -343,7 +343,7 @@
         <div>
           <span class="eyebrow dark">HOW-TO #10 · YARD</span>
           <h2>Yard Check Vehicle Reconciliation</h2>
-          <p>Import report-page photos, verify the extracted units, then use Yard Mode outside.</p>
+          <p>Search units, review progress, and keep the active Yard Check organized while you walk the yard.</p>
         </div>
         <button id="yardBackBtn" class="secondary-btn" type="button">← Back to How-To</button>
       </div>
@@ -371,6 +371,23 @@
         </button>
       </div>
 
+      <div class="yard-dashboard-actions">
+        <button id="openYardImportBtn" class="primary-btn" type="button">Import / Replace Yard Check</button>
+        <button id="yardSessionOptionsBtn" class="secondary-btn" type="button">Session Options</button>
+      </div>
+
+      <section id="yardSessionOptions" class="yard-card yard-session-options hidden">
+        <div class="yard-list-browser-top">
+          <div>
+            <span class="mini-label">SESSION OPTIONS</span>
+            <h3>Current Yard Check</h3>
+          </div>
+          <button id="closeYardSessionOptionsBtn" class="secondary-btn small-btn" type="button">Close</button>
+        </div>
+        <p id="yardActiveSessionSummary" class="yard-muted">No active Yard Check.</p>
+        <button id="dashboardClearYardSessionBtn" class="secondary-btn danger-outline yard-wide-btn" type="button">Clear Yard Session</button>
+      </section>
+
       <div class="yard-attention-legend">
         <span class="mini-label">AUTO STATUS HIGHLIGHTING</span>
         <p>
@@ -396,9 +413,18 @@
         <div id="yardListResults" class="yard-list-results"></div>
       </section>
 
-      <section class="yard-card">
+      <section id="yardImportScreen" class="yard-import-screen hidden">
+        <div class="yard-import-screen-header">
+          <button id="yardImportBackBtn" class="secondary-btn" type="button">← Back to Yard Check</button>
+          <div>
+            <span class="mini-label">IMPORT / REPLACE</span>
+            <h3>Import Yard Check</h3>
+            <p>Photos, PDF, Excel, or CSV. Your current Yard Check stays active until a new import finishes successfully.</p>
+          </div>
+        </div>
+
+      <section id="yardImportPanel" class="yard-card">
         <span class="mini-label">STEP 1 · IMPORT</span>
-        <h3>Import Yard Check</h3>
         <p class="yard-muted">
           Upload report photos, a PDF, Excel workbook, or CSV file.
           Photos and PDFs are read visually. Excel/CSV rows are mapped directly into Yard Mode.
@@ -423,7 +449,7 @@
 
         <div class="call-actions">
           <button id="analyzeYardPhotosBtn" class="primary-btn" type="button">Analyze Import</button>
-          <button id="clearYardSessionBtn" class="secondary-btn danger-outline" type="button">Clear Yard Session</button>
+          <button id="clearYardFilesBtn" class="secondary-btn" type="button">Clear Selected Files</button>
         </div>
 
         <div id="yardImportStatus" class="yard-status hidden"></div>
@@ -442,10 +468,11 @@
         </p>
         <div id="yardReviewSummary" class="yard-review-summary"></div>
         <div id="yardReviewList" class="yard-review-list"></div>
-        <button id="startYardModeBtn" class="primary-btn yard-wide-btn" type="button">Start Yard Mode</button>
+        <button id="startYardModeBtn" class="primary-btn yard-wide-btn" type="button">Use This Yard Check</button>
+      </section>
       </section>
 
-      <section id="yardModePanel" class="yard-card hidden">
+      <section id="yardModePanel" class="yard-card">
         <span class="mini-label">STEP 3 · YARD MODE</span>
         <div class="yard-field-mode-heading"><div><h3>Search a Unit</h3><p>See truck → enter unit → page/status → location → Checked → next.</p></div><span class="yard-field-badge">FIELD MODE</span></div>
         <p class="yard-muted">Type the unit number you physically see.</p>
@@ -463,7 +490,7 @@
         <div id="yardUnitResult" class="yard-unit-result"></div>
       </section>
 
-      <section class="yard-card">
+      <section class="yard-card hidden">
         <span class="mini-label">FOLLOW-UP</span>
         <h3>Research List</h3>
         <p class="yard-muted">
