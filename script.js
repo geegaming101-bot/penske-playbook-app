@@ -2370,6 +2370,11 @@ function newCall() {
     });
 
   document.getElementById("resolutionPanel")?.classList.add("hidden");
+  const similarResults = document.getElementById("similarCallResults");
+  if (similarResults) {
+    similarResults.classList.add("hidden");
+    similarResults.innerHTML = "";
+  }
   renderActiveCall();
 }
 
@@ -2444,6 +2449,8 @@ function renderActiveCall() {
     resolveButton.disabled = false;
     editResolutionButton?.classList.add("hidden");
     aiResult?.classList.add("hidden");
+    document.getElementById("aiMatchBadge")?.classList.add("hidden");
+    document.getElementById("aiCallCards")?.replaceChildren();
     if (aiText) aiText.textContent = "";
     return;
   }
@@ -2496,10 +2503,11 @@ function renderActiveCall() {
     `;
 
   if (call.aiAdvice) {
-    if (aiText) aiText.textContent = call.aiAdvice;
-    aiResult?.classList.remove("hidden");
+    renderAiAdvice(call.aiAdvice);
   } else {
     aiResult?.classList.add("hidden");
+    document.getElementById("aiMatchBadge")?.classList.add("hidden");
+    document.getElementById("aiCallCards")?.replaceChildren();
     if (aiText) aiText.textContent = "";
   }
 
@@ -2648,8 +2656,10 @@ function renderCallHistory() {
       callHistoryFilter === "all" ||
       call.status === callHistoryFilter;
 
+    const searchTerms = query.split(/\s+/).filter(Boolean);
+    const haystack = searchableCallText(call);
     const matchesSearch =
-      !query || searchableCallText(call).includes(query);
+      !searchTerms.length || searchTerms.every((term) => haystack.includes(term));
 
     return matchesFilter && matchesSearch;
   });
@@ -2666,7 +2676,14 @@ function renderCallHistory() {
 
   list.innerHTML = visible.map((call) => {
     const noteCount = Array.isArray(call.notes) ? call.notes.length : 0;
-    const summary = call.resolution || call.scratch || call.notes?.[call.notes.length - 1]?.text || "Saved call";
+    const fallbackSummary = call.scratch || call.notes?.[call.notes.length - 1]?.text || "Saved call";
+    const summary = call.status === "resolved"
+      ? (call.resolution || fallbackSummary)
+      : fallbackSummary;
+    const summaryLabel = call.status === "resolved" ? "Solved" : "Latest";
+    const lessonPreview = call.status === "resolved" && call.lesson
+      ? call.lesson.slice(0, 110)
+      : "";
 
     return `
       <article class="call-history-card ${activeCallId === call.id ? "active" : ""}">
@@ -2678,7 +2695,8 @@ function renderCallHistory() {
             </span>
           </div>
           <span class="call-history-date">${escapeHtml(formatCallDate(call.updatedAt || call.createdAt))}</span>
-          <p>${escapeHtml(summary.slice(0, 150))}${summary.length > 150 ? "…" : ""}</p>
+          <p><b>${summaryLabel}:</b> ${escapeHtml(summary.slice(0, 150))}${summary.length > 150 ? "…" : ""}</p>
+          ${lessonPreview ? `<p class="history-lesson-preview"><b>Remember:</b> ${escapeHtml(lessonPreview)}${call.lesson.length > 110 ? "…" : ""}</p>` : ""}
           <span class="call-history-meta">${noteCount} note${noteCount === 1 ? "" : "s"}${call.reference ? ` • ${escapeHtml(call.reference)}` : ""}</span>
         </button>
         <button class="delete-call-btn" data-delete-call="${escapeHtml(call.id)}" type="button">Delete</button>
@@ -2695,6 +2713,38 @@ function renderCallHistory() {
   });
 }
 
+
+const CALL_SIMILARITY_STOP_WORDS = new Set([
+  "the", "and", "for", "that", "this", "with", "from", "they", "their", "there",
+  "have", "has", "had", "was", "were", "are", "but", "not", "you", "your", "our",
+  "call", "called", "calling", "customer", "company", "unit", "truck", "vehicle",
+  "reservation", "penske", "need", "needs", "needed", "said", "says", "saying",
+  "about", "into", "just", "then", "than", "when", "where", "what", "which",
+  "would", "could", "should", "them", "some", "more", "also", "still", "today"
+]);
+
+function normalizedCallWords(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s'-]/g, " ")
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter((word) =>
+      word.length >= 3 &&
+      !CALL_SIMILARITY_STOP_WORDS.has(word)
+    );
+}
+
+function phraseCandidates(text) {
+  const words = normalizedCallWords(text);
+  const phrases = new Set();
+
+  for (let i = 0; i < words.length - 1; i += 1) {
+    phrases.add(`${words[i]} ${words[i + 1]}`);
+  }
+
+  return phrases;
+}
 
 function getCallTextForSimilarity(call) {
   const notes = Array.isArray(call.notes)
@@ -2716,43 +2766,168 @@ function getCallTextForSimilarity(call) {
 }
 
 function tokenizeCallText(text) {
-  return new Set(
-    String(text || "")
-      .toLowerCase()
-      .replace(/[^a-z0-9\s'-]/g, " ")
-      .split(/\s+/)
-      .filter((word) => word.length >= 3)
-  );
+  return new Set(normalizedCallWords(text));
 }
 
-function findSimilarResolvedCalls(currentCall, limit = 5) {
+function scoreSimilarCall(currentCall, pastCall) {
   const currentText = getCallTextForSimilarity(currentCall);
-  const currentTokens = tokenizeCallText(currentText);
+  const pastText = getCallTextForSimilarity(pastCall);
 
+  const currentTokens = tokenizeCallText(currentText);
+  const pastTokens = tokenizeCallText(pastText);
+  const currentPhrases = phraseCandidates(currentText);
+  const pastPhrases = phraseCandidates(pastText);
+
+  let tokenOverlap = 0;
+  currentTokens.forEach((token) => {
+    if (pastTokens.has(token)) tokenOverlap += 1;
+  });
+
+  let phraseOverlap = 0;
+  currentPhrases.forEach((phrase) => {
+    if (pastPhrases.has(phrase)) phraseOverlap += 1;
+  });
+
+  const score = tokenOverlap + (phraseOverlap * 3);
+
+  return {
+    score,
+    tokenOverlap,
+    phraseOverlap
+  };
+}
+
+function findSimilarResolvedCalls(currentCall, limit = 5, includeMeta = false) {
   return loadCalls()
     .filter((call) => call.status === "resolved" && call.id !== currentCall.id)
     .map((call) => {
-      const tokens = tokenizeCallText(getCallTextForSimilarity(call));
-      let overlap = 0;
-
-      currentTokens.forEach((token) => {
-        if (tokens.has(token)) overlap += 1;
-      });
-
-      return { call, score: overlap };
+      const match = scoreSimilarCall(currentCall, call);
+      return { call, ...match };
     })
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(b.call.updatedAt || b.call.createdAt) - new Date(a.call.updatedAt || a.call.createdAt);
+    })
     .slice(0, limit)
-    .map(({ call }) => ({
-      createdAt: call.createdAt,
-      customer: call.customer || "",
-      company: call.company || "",
-      reference: call.reference || "",
-      notes: Array.isArray(call.notes) ? call.notes.map((note) => note.text) : [],
-      resolution: call.resolution || "",
-      lesson: call.lesson || ""
-    }));
+    .map(({ call, score, tokenOverlap, phraseOverlap }) => {
+      const result = {
+        id: call.id,
+        createdAt: call.createdAt,
+        updatedAt: call.updatedAt,
+        customer: call.customer || "",
+        company: call.company || "",
+        reference: call.reference || "",
+        notes: Array.isArray(call.notes) ? call.notes.map((note) => note.text) : [],
+        scratch: call.scratch || "",
+        resolution: call.resolution || "",
+        lesson: call.lesson || ""
+      };
+
+      if (includeMeta) {
+        result.matchScore = score;
+        result.tokenOverlap = tokenOverlap;
+        result.phraseOverlap = phraseOverlap;
+      }
+
+      return result;
+    });
+}
+
+function similarityStrength(match) {
+  const score = Number(match?.matchScore || 0);
+  const phraseOverlap = Number(match?.phraseOverlap || 0);
+
+  if (phraseOverlap >= 2 || score >= 9) return "Strong match";
+  if (phraseOverlap >= 1 || score >= 5) return "Good match";
+  return "Possible match";
+}
+
+function renderSimilarResolvedCalls() {
+  const container = document.getElementById("similarCallResults");
+  if (!container) return;
+
+  const fields = readCurrentCallFields();
+  const existing = getActiveCall();
+
+  const currentCall = {
+    id: existing?.id || null,
+    customer: fields.customer || existing?.customer || "",
+    company: fields.company || existing?.company || "",
+    reference: fields.reference || existing?.reference || "",
+    phone: fields.phone || existing?.phone || "",
+    scratch: fields.scratch || existing?.scratch || "",
+    notes: Array.isArray(existing?.notes) ? existing.notes : []
+  };
+
+  const currentText = getCallTextForSimilarity(currentCall).trim();
+
+  if (!currentText) {
+    container.classList.remove("hidden");
+    container.innerHTML = `
+      <div class="empty-call-state">
+        <strong>Add current call notes first.</strong>
+        <span>The matcher needs a short description of the problem to compare against resolved calls.</span>
+      </div>
+    `;
+    return;
+  }
+
+  const matches = findSimilarResolvedCalls(currentCall, 3, true);
+  container.classList.remove("hidden");
+
+  if (!matches.length) {
+    container.innerHTML = `
+      <div class="empty-call-state">
+        <strong>No useful past match found.</strong>
+        <span>Resolve this call when finished and it becomes experience for next time.</span>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = matches.map((match, index) => {
+    const title = match.customer || match.company || match.reference || "Resolved Call";
+    const strength = similarityStrength(match);
+    const resolution = match.resolution || "No resolution was saved.";
+    const lesson = match.lesson || "";
+    const isTop = index === 0;
+
+    return `
+      <article class="similar-call-card ${isTop ? "top-match" : ""}">
+        <div class="similar-call-card-top">
+          <div>
+            <span class="similarity-pill ${strength.toLowerCase().replace(/\s+/g, "-")}">${escapeHtml(strength)}</span>
+            <strong>${escapeHtml(title)}</strong>
+          </div>
+          <span class="call-history-date">${escapeHtml(formatCallDate(match.updatedAt || match.createdAt))}</span>
+        </div>
+
+        <div class="similar-call-solution">
+          <span class="mini-label">WHAT WORKED</span>
+          <p>${escapeHtml(resolution)}</p>
+        </div>
+
+        ${lesson ? `
+          <div class="similar-call-lesson">
+            <span class="mini-label">REMEMBER</span>
+            <p>${escapeHtml(lesson)}</p>
+          </div>
+        ` : ""}
+
+        <div class="similar-call-footer">
+          <span>Past example, not policy.</span>
+          <button class="secondary-btn small-btn" data-open-similar-call="${escapeHtml(match.id)}" type="button">
+            Open Past Call
+          </button>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  container.querySelectorAll("[data-open-similar-call]").forEach((button) => {
+    button.addEventListener("click", () => openSavedCall(button.dataset.openSimilarCall));
+  });
 }
 
 function prepareProceduresForAi() {
@@ -2766,6 +2941,133 @@ function prepareProceduresForAi() {
     description: procedure.description || "",
     content: procedure.content || procedure.steps || procedure.sections || procedure
   }));
+}
+
+const AI_SECTION_ORDER = [
+  "QUICK READ",
+  "SIMILAR PAST CALL",
+  "GET / CONFIRM",
+  "BEST PLAYBOOK MATCH",
+  "WHAT TO DO NEXT",
+  "WHAT TO SAY",
+  "WHEN TO ASK FOR HELP"
+];
+
+function parseAiAdviceSections(advice) {
+  const normalized = String(advice || "").replace(/\r/g, "").trim();
+  if (!normalized) return {};
+
+  const sections = {};
+  let current = null;
+
+  normalized.split("\n").forEach((rawLine) => {
+    const line = rawLine.trim();
+    const heading = AI_SECTION_ORDER.find((name) => line.toUpperCase() === name);
+
+    if (heading) {
+      current = heading;
+      sections[current] = [];
+      return;
+    }
+
+    if (current) {
+      sections[current].push(rawLine);
+    }
+  });
+
+  Object.keys(sections).forEach((key) => {
+    sections[key] = sections[key].join("\n").trim();
+  });
+
+  return sections;
+}
+
+function aiSectionClass(title) {
+  const classes = {
+    "QUICK READ": "quick-read",
+    "SIMILAR PAST CALL": "past-call",
+    "GET / CONFIRM": "confirm",
+    "BEST PLAYBOOK MATCH": "playbook-match",
+    "WHAT TO DO NEXT": "next-steps",
+    "WHAT TO SAY": "what-to-say",
+    "WHEN TO ASK FOR HELP": "ask-help"
+  };
+  return classes[title] || "";
+}
+
+function aiSectionLabel(title) {
+  const labels = {
+    "QUICK READ": "QUICK READ",
+    "SIMILAR PAST CALL": "SIMILAR PAST CALL",
+    "GET / CONFIRM": "GET / CONFIRM",
+    "BEST PLAYBOOK MATCH": "PLAYBOOK MATCH",
+    "WHAT TO DO NEXT": "WHAT TO DO NEXT",
+    "WHAT TO SAY": "WHAT TO SAY",
+    "WHEN TO ASK FOR HELP": "ASK FOR HELP WHEN"
+  };
+  return labels[title] || title;
+}
+
+function formatAiSectionBody(text) {
+  const lines = String(text || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) return "";
+
+  const numbered = lines.every((line) => /^\d+[.)]\s+/.test(line));
+  const bullets = lines.every((line) => /^[-•*]\s+/.test(line));
+
+  if (numbered) {
+    return `<ol>${lines.map((line) => `<li>${escapeHtml(line.replace(/^\d+[.)]\s+/, ""))}</li>`).join("")}</ol>`;
+  }
+
+  if (bullets) {
+    return `<ul>${lines.map((line) => `<li>${escapeHtml(line.replace(/^[-•*]\s+/, ""))}</li>`).join("")}</ul>`;
+  }
+
+  return lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("");
+}
+
+function renderAiAdvice(advice) {
+  const result = document.getElementById("aiCallResult");
+  const rawText = document.getElementById("aiCallText");
+  const cards = document.getElementById("aiCallCards");
+  const badge = document.getElementById("aiMatchBadge");
+
+  if (rawText) rawText.textContent = advice || "";
+  if (!cards) return;
+
+  const sections = parseAiAdviceSections(advice);
+  const hasStructured = AI_SECTION_ORDER.some((title) => sections[title]);
+
+  if (!hasStructured) {
+    cards.innerHTML = `<section class="ai-guidance-card quick-read"><span class="ai-guidance-label">GUIDANCE</span><div class="ai-guidance-body"><p>${escapeHtml(advice || "")}</p></div></section>`;
+    badge?.classList.add("hidden");
+    result?.classList.remove("hidden");
+    return;
+  }
+
+  cards.innerHTML = AI_SECTION_ORDER
+    .filter((title) => sections[title])
+    .map((title) => `
+      <section class="ai-guidance-card ${aiSectionClass(title)}">
+        <span class="ai-guidance-label">${aiSectionLabel(title)}</span>
+        <div class="ai-guidance-body">${formatAiSectionBody(sections[title])}</div>
+      </section>
+    `)
+    .join("");
+
+  const past = String(sections["SIMILAR PAST CALL"] || "").toLowerCase();
+  const strongPastMatch =
+    past &&
+    !past.includes("no strong match") &&
+    !past.includes("no match") &&
+    !past.includes("none found");
+
+  badge?.classList.toggle("hidden", !strongPastMatch);
+  result?.classList.remove("hidden");
 }
 
 async function askAiForCallHelp() {
@@ -2850,7 +3152,7 @@ async function askAiForCallHelp() {
     }
 
     if (text) text.textContent = advice;
-    result?.classList.remove("hidden");
+    renderAiAdvice(advice);
     renderCallHistory();
     showCallMessage("AI recommendation added to this call.", "good");
   } catch (error) {
@@ -2904,6 +3206,7 @@ function initializeCalls() {
   document.getElementById("editResolutionBtn")?.addEventListener("click", editResolvedCallResolution);
   document.getElementById("askCallAiBtn")?.addEventListener("click", askAiForCallHelp);
   document.getElementById("copyAiCallBtn")?.addEventListener("click", copyAiCallAdvice);
+  document.getElementById("findSimilarCallsBtn")?.addEventListener("click", renderSimilarResolvedCalls);
   document.getElementById("saveResolutionBtn")?.addEventListener("click", saveCallResolution);
 
   document.getElementById("cancelResolutionBtn")?.addEventListener("click", () => {
