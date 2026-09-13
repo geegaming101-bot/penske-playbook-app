@@ -228,6 +228,35 @@
             <button class="call-filter" data-call-filter="resolved" type="button">Resolved</button>
           </div>
 
+          <section class="backup-panel">
+            <div class="backup-panel-heading">
+              <div>
+                <span class="mini-label">BACKUP / TRANSFER</span>
+                <strong>Move your saved experience</strong>
+              </div>
+            </div>
+
+            <p>
+              Export your saved Calls and Vehicle Log to one backup file. Import it later on this or another device.
+            </p>
+
+            <div class="backup-actions">
+              <button id="exportBackupBtn" class="secondary-btn" type="button">Export Backup</button>
+              <button id="importBackupBtn" class="secondary-btn" type="button">Import Backup</button>
+              <input id="importBackupFile" class="hidden-file-input" type="file" accept=".json,application/json" />
+            </div>
+
+            <div id="importChoicePanel" class="import-choice-panel hidden">
+              <span class="mini-label">HOW SHOULD THIS BACKUP BE IMPORTED?</span>
+              <p><strong>Merge</strong> keeps current data and adds/updates items from the backup. <strong>Replace</strong> wipes current Calls and Vehicle Log first.</p>
+              <div class="backup-actions">
+                <button id="mergeBackupBtn" class="primary-btn" type="button">Merge With Current</button>
+                <button id="replaceBackupBtn" class="secondary-btn danger-outline" type="button">Replace Current Data</button>
+                <button id="cancelImportBtn" class="secondary-btn" type="button">Cancel</button>
+              </div>
+            </div>
+          </section>
+
           <div id="callHistoryList" class="call-history-list"></div>
         </aside>
       </div>
