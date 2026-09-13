@@ -371,6 +371,24 @@
         </button>
       </div>
 
+      <section class="yard-speed-panel" aria-label="Yard productivity">
+        <div class="yard-speed-heading">
+          <div>
+            <span class="mini-label">YARD PRODUCTIVITY</span>
+            <h3>Walk Timer</h3>
+          </div>
+          <strong id="yardElapsedTime">00:00</strong>
+        </div>
+        <div class="yard-speed-stats">
+          <div><span>Processed</span><strong id="yardProcessedCount">0</strong></div>
+          <div><span>Avg / Unit</span><strong id="yardAverageTime">—</strong></div>
+        </div>
+        <div class="yard-speed-actions">
+          <button id="yardTimerToggleBtn" class="primary-btn" type="button">Start Yard Walk</button>
+          <button id="yardTimerResetBtn" class="secondary-btn" type="button">Reset Timer</button>
+        </div>
+      </section>
+
       <div class="yard-dashboard-actions">
         <button id="openYardImportBtn" class="primary-btn" type="button">Import / Replace Yard Check</button>
         <button id="yardSessionOptionsBtn" class="secondary-btn" type="button">Session Options</button>
@@ -385,7 +403,13 @@
           <button id="closeYardSessionOptionsBtn" class="secondary-btn small-btn" type="button">Close</button>
         </div>
         <p id="yardActiveSessionSummary" class="yard-muted">No active Yard Check.</p>
-        <button id="dashboardClearYardSessionBtn" class="secondary-btn danger-outline yard-wide-btn" type="button">Clear Yard Session</button>
+        <div class="yard-session-action-stack">
+          <button id="exportYardOnlyBtn" class="primary-btn yard-wide-btn" type="button">Export Yard Check</button>
+          <button id="importYardOnlyBtn" class="secondary-btn yard-wide-btn" type="button">Import Yard Check Backup</button>
+          <input id="importYardOnlyFile" class="hidden-file-input" type="file" accept=".json,application/json" />
+          <button id="dashboardClearYardSessionBtn" class="secondary-btn danger-outline yard-wide-btn" type="button">Clear Yard Session</button>
+        </div>
+        <div id="yardSessionTransferStatus" class="yard-status hidden"></div>
       </section>
 
       <div class="yard-attention-legend">
@@ -435,7 +459,7 @@
           <input
             id="yardPhotoInput"
             type="file"
-            accept="image/*,.pdf,application/pdf,.xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            accept=".jpg,.jpeg,.png,.heic,.heif,.webp,.pdf,.xlsx,.xls,.csv,image/*,application/pdf,text/csv"
             multiple
           />
         </label>
