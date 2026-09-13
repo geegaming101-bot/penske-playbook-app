@@ -23,6 +23,10 @@ exports.handler = async function handler(event) {
   const procedures = Array.isArray(body.procedures) ? body.procedures : [];
   const similarCalls = Array.isArray(body.similarCalls) ? body.similarCalls : [];
 
+  if (body.mode === "resolution_review") {
+    return handleResolutionReview(body, currentCall, procedures);
+  }
+
   const callText = [
     currentCall.customer,
     currentCall.company,
@@ -159,6 +163,105 @@ ${JSON.stringify(similarCalls, null, 2)}
     });
   }
 };
+
+async function handleResolutionReview(body, currentCall, procedures) {
+  const proposedResolution = String(body.proposedResolution || "").trim();
+  const proposedLesson = String(body.proposedLesson || "").trim();
+  const reviewMessages = Array.isArray(body.reviewMessages) ? body.reviewMessages : [];
+
+  if (!proposedResolution) {
+    return jsonResponse(400, { error: "Add how the call was resolved before reviewing it." });
+  }
+
+  const model = process.env.OPENAI_MODEL || "gpt-5.6-luna";
+
+  const instructions = `
+You are reviewing how a real call was resolved for the user's personal training history.
+
+GOAL:
+Understand what actually happened before the call is saved as resolved. Ask concise follow-up questions when the user's explanation is incomplete. Once the resolution is clear enough to be useful later, produce a clean final summary.
+
+STRICT RULES:
+- Do not invent missing events, Penske policy, internal click paths, approvals, or outcomes.
+- The supplied Playbook may help you recognize documented procedures, but do not claim the user's real call followed a step unless the user says it did.
+- A one-time resolution is a past example, not company policy.
+- Ask only ONE focused follow-up question at a time.
+- Keep each response short and conversational.
+- Do not ask for information that is unnecessary to understand why/how the call was resolved.
+- If the user has clearly explained the problem, the actions taken, and the final outcome, mark the review ready.
+- "What happens next" means the actual known next action/outcome from this call. Never predict or invent an internal process.
+- Do not expose chain-of-thought.
+
+Return ONLY valid JSON with exactly these keys:
+{
+  "readyToSave": boolean,
+  "review": "short feedback or one focused question",
+  "finalResolution": "clean factual resolution summary, or empty string if not ready",
+  "lesson": "short useful remember-next-time note, or empty string if not ready"
+}
+`.trim();
+
+  const input = `
+CURRENT CALL
+${JSON.stringify(currentCall, null, 2)}
+
+USER'S CURRENT RESOLUTION
+${proposedResolution}
+
+USER'S CURRENT LESSON
+${proposedLesson}
+
+RESOLUTION REVIEW CONVERSATION
+${JSON.stringify(reviewMessages, null, 2)}
+
+DOCUMENTED PLAYBOOK
+${JSON.stringify(procedures, null, 2)}
+`.trim();
+
+  try {
+    const response = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        instructions,
+        input,
+        store: false,
+        max_output_tokens: 450
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return jsonResponse(response.status, {
+        error: data?.error?.message || `OpenAI request failed with status ${response.status}.`
+      });
+    }
+
+    const raw = extractOutputText(data);
+    if (!raw) return jsonResponse(502, { error: "OpenAI returned no readable review." });
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/^```json\s*/i, "").replace(/```$/i, "").trim());
+    } catch {
+      return jsonResponse(502, { error: "The AI review returned an unreadable response. Try again." });
+    }
+
+    return jsonResponse(200, {
+      readyToSave: parsed.readyToSave === true,
+      review: String(parsed.review || "").trim(),
+      finalResolution: String(parsed.finalResolution || "").trim(),
+      lesson: String(parsed.lesson || "").trim()
+    });
+  } catch (error) {
+    return jsonResponse(500, { error: "Could not reach OpenAI from the Netlify function." });
+  }
+}
 
 function extractOutputText(data) {
   if (typeof data.output_text === "string" && data.output_text.trim()) {
