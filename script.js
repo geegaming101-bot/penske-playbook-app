@@ -2230,8 +2230,10 @@ document.addEventListener("keydown", (event) => {
 // ==========================================================
 
 const CALLS_STORAGE_KEY = "penskeCallsV1";
+const PLAYBOOK_BACKUP_VERSION = 1;
 let activeCallId = null;
 let callHistoryFilter = "all";
+let pendingBackupImport = null;
 
 function loadCalls() {
   try {
@@ -2917,17 +2919,228 @@ function renderSimilarResolvedCalls() {
 
         <div class="similar-call-footer">
           <span>Past example, not policy.</span>
-          <button class="secondary-btn small-btn" data-open-similar-call="${escapeHtml(match.id)}" type="button">
-            Open Past Call
-          </button>
+          <div class="similar-call-actions">
+            <button class="primary-btn small-btn" data-use-resolution="${escapeHtml(match.id)}" type="button">
+              Use This Resolution
+            </button>
+            <button class="secondary-btn small-btn" data-open-similar-call="${escapeHtml(match.id)}" type="button">
+              Open Past Call
+            </button>
+          </div>
         </div>
       </article>
     `;
   }).join("");
 
+  container.querySelectorAll("[data-use-resolution]").forEach((button) => {
+    button.addEventListener("click", () => usePastResolution(button.dataset.useResolution));
+  });
+
   container.querySelectorAll("[data-open-similar-call]").forEach((button) => {
     button.addEventListener("click", () => openSavedCall(button.dataset.openSimilarCall));
   });
+}
+
+function usePastResolution(pastCallId) {
+  const current = getActiveCall();
+
+  if (!current) {
+    showCallMessage("Save the current call first, then choose a past resolution.", "warn");
+    return;
+  }
+
+  if (current.id === pastCallId) {
+    showCallMessage("That is the call you already have open.", "warn");
+    return;
+  }
+
+  const pastCall = loadCalls().find((call) => call.id === pastCallId && call.status === "resolved");
+
+  if (!pastCall || !pastCall.resolution) {
+    showCallMessage("That past call does not have a saved resolution to reuse.", "warn");
+    return;
+  }
+
+  const panel = document.getElementById("resolutionPanel");
+  const resolution = document.getElementById("callResolution");
+  const lesson = document.getElementById("callLesson");
+
+  if (resolution) resolution.value = pastCall.resolution || "";
+  if (lesson && pastCall.lesson) lesson.value = pastCall.lesson;
+
+  panel?.classList.remove("hidden");
+  panel?.scrollIntoView({ behavior: "smooth", block: "center" });
+  resolution?.focus();
+
+  showCallMessage(
+    `Previous resolution loaded from "${callDisplayTitle(pastCall)}". Review it, edit anything that changed, then save.`,
+    "good"
+  );
+}
+
+function mergeById(currentItems, importedItems) {
+  const map = new Map();
+
+  (Array.isArray(currentItems) ? currentItems : []).forEach((item) => {
+    if (item && item.id) map.set(item.id, item);
+  });
+
+  (Array.isArray(importedItems) ? importedItems : []).forEach((item) => {
+    if (!item || !item.id) return;
+
+    const existing = map.get(item.id);
+    if (!existing) {
+      map.set(item.id, item);
+      return;
+    }
+
+    const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+    const importedTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
+
+    map.set(item.id, importedTime >= existingTime ? item : existing);
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+function buildPlaybookBackup() {
+  // Make sure typed current-call fields are not lost before export.
+  const fields = readCurrentCallFields();
+  const hasTypedCallData = Object.values(fields).some(Boolean);
+  if (hasTypedCallData || activeCallId) {
+    saveCurrentCall({ silent: true });
+  }
+
+  return {
+    app: "Penske Playbook",
+    backupVersion: PLAYBOOK_BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: {
+      calls: loadCalls(),
+      vehicleLog: loadVehicleLogEntries()
+    }
+  };
+}
+
+function downloadJsonFile(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportPlaybookBackup() {
+  const backup = buildPlaybookBackup();
+  const stamp = new Date().toISOString().slice(0, 10);
+  downloadJsonFile(`penske-playbook-backup-${stamp}.json`, backup);
+  showCallMessage("Backup exported. Keep the JSON file somewhere you can find it later.", "good");
+}
+
+function validateBackupPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("That file is not a valid Playbook backup.");
+  }
+
+  if (payload.app !== "Penske Playbook" || !payload.data) {
+    throw new Error("That JSON file is not recognized as a Penske Playbook backup.");
+  }
+
+  if (!Array.isArray(payload.data.calls) || !Array.isArray(payload.data.vehicleLog)) {
+    throw new Error("The backup file is missing Calls or Vehicle Log data.");
+  }
+
+  return payload;
+}
+
+async function readBackupFile(file) {
+  const text = await file.text();
+  let payload;
+
+  try {
+    payload = JSON.parse(text);
+  } catch (error) {
+    throw new Error("The selected file is not valid JSON.");
+  }
+
+  return validateBackupPayload(payload);
+}
+
+async function chooseBackupFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    pendingBackupImport = await readBackupFile(file);
+    const panel = document.getElementById("importChoicePanel");
+    panel?.classList.remove("hidden");
+    panel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    showCallMessage(
+      `Backup ready: ${pendingBackupImport.data.calls.length} calls and ${pendingBackupImport.data.vehicleLog.length} vehicle log entries.`,
+      "good"
+    );
+  } catch (error) {
+    pendingBackupImport = null;
+    showCallMessage(error.message || "Could not read that backup file.", "warn");
+  } finally {
+    // Allows selecting the same file again later.
+    event.target.value = "";
+  }
+}
+
+function finishBackupImport(mode) {
+  if (!pendingBackupImport) {
+    showCallMessage("Choose a backup file first.", "warn");
+    return;
+  }
+
+  const importedCalls = pendingBackupImport.data.calls;
+  const importedVehicles = pendingBackupImport.data.vehicleLog;
+
+  if (mode === "replace") {
+    const okay = window.confirm(
+      "Replace current Calls and Vehicle Log with the selected backup? This will overwrite the saved data on this device."
+    );
+    if (!okay) return;
+
+    saveCalls(importedCalls);
+    saveVehicleLogEntries(importedVehicles);
+  } else {
+    saveCalls(mergeById(loadCalls(), importedCalls));
+    saveVehicleLogEntries(mergeById(loadVehicleLogEntries(), importedVehicles));
+  }
+
+  activeCallId = null;
+  pendingBackupImport = null;
+
+  document.getElementById("importChoicePanel")?.classList.add("hidden");
+  newCall();
+  renderCallHistory();
+
+  if (typeof renderVehicleLogList === "function") {
+    renderVehicleLogList();
+  }
+
+  showCallMessage(
+    mode === "replace"
+      ? "Backup imported. Current saved data was replaced."
+      : "Backup imported and merged with the data already on this device.",
+    "good"
+  );
+}
+
+function cancelBackupImport() {
+  pendingBackupImport = null;
+  document.getElementById("importChoicePanel")?.classList.add("hidden");
+  showCallMessage("Import canceled.", "neutral");
 }
 
 function prepareProceduresForAi() {
@@ -3208,6 +3421,15 @@ function initializeCalls() {
   document.getElementById("copyAiCallBtn")?.addEventListener("click", copyAiCallAdvice);
   document.getElementById("findSimilarCallsBtn")?.addEventListener("click", renderSimilarResolvedCalls);
   document.getElementById("saveResolutionBtn")?.addEventListener("click", saveCallResolution);
+
+  document.getElementById("exportBackupBtn")?.addEventListener("click", exportPlaybookBackup);
+  document.getElementById("importBackupBtn")?.addEventListener("click", () => {
+    document.getElementById("importBackupFile")?.click();
+  });
+  document.getElementById("importBackupFile")?.addEventListener("change", chooseBackupFile);
+  document.getElementById("mergeBackupBtn")?.addEventListener("click", () => finishBackupImport("merge"));
+  document.getElementById("replaceBackupBtn")?.addEventListener("click", () => finishBackupImport("replace"));
+  document.getElementById("cancelImportBtn")?.addEventListener("click", cancelBackupImport);
 
   document.getElementById("cancelResolutionBtn")?.addEventListener("click", () => {
     document.getElementById("resolutionPanel")?.classList.add("hidden");
