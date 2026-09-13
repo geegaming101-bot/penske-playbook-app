@@ -4194,6 +4194,7 @@ function saveCurrentCall(options = {}) {
       lesson: "",
       aiAdvice: "",
       aiAdviceAt: null,
+      aiConversation: [],
       resolvedAt: null
     };
     activeCallId = call.id;
@@ -4269,6 +4270,8 @@ function newCall() {
     similarResults.classList.add("hidden");
     similarResults.innerHTML = "";
   }
+  const liveReply = document.getElementById("liveAiReply");
+  if (liveReply) liveReply.value = "";
   renderActiveCall();
 }
 
@@ -4346,6 +4349,7 @@ function renderActiveCall() {
     document.getElementById("aiMatchBadge")?.classList.add("hidden");
     document.getElementById("aiCallCards")?.replaceChildren();
     if (aiText) aiText.textContent = "";
+    renderLiveAiConversation(null);
     return;
   }
 
@@ -4404,6 +4408,8 @@ function renderActiveCall() {
     document.getElementById("aiCallCards")?.replaceChildren();
     if (aiText) aiText.textContent = "";
   }
+
+  renderLiveAiConversation(call);
 
   if (call.status === "resolved") {
     resolveButton.textContent = "Reopen Call";
@@ -5627,6 +5633,132 @@ function renderAiAdvice(advice) {
   result?.classList.remove("hidden");
 }
 
+
+function getLiveAiMessages(call = getActiveCall()) {
+  return Array.isArray(call?.aiConversation) ? call.aiConversation : [];
+}
+
+function renderLiveAiConversation(call = getActiveCall()) {
+  const thread = document.getElementById("liveAiThread");
+  const conversation = document.getElementById("liveAiConversation");
+  if (!thread || !conversation) return;
+
+  const messages = getLiveAiMessages(call);
+
+  if (!messages.length) {
+    thread.innerHTML = `
+      <div class="live-ai-empty">
+        After the first recommendation, type what the customer tells you next.
+        AI will give you the next useful move without restarting the whole call.
+      </div>
+    `;
+    return;
+  }
+
+  thread.innerHTML = messages.map((message) => {
+    const role = message.role === "assistant" ? "assistant" : "user";
+    const label = role === "assistant" ? "AI" : "YOU";
+    return `
+      <div class="live-ai-message ${role}">
+        <span>${label}</span>
+        <p>${escapeHtml(message.text || "")}</p>
+      </div>
+    `;
+  }).join("");
+
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function saveLiveAiMessage(callId, role, text) {
+  const clean = String(text || "").trim();
+  if (!callId || !clean) return null;
+
+  const calls = loadCalls();
+  const call = calls.find((item) => item.id === callId);
+  if (!call) return null;
+
+  call.aiConversation = Array.isArray(call.aiConversation) ? call.aiConversation : [];
+  call.aiConversation.push({
+    role: role === "assistant" ? "assistant" : "user",
+    text: clean,
+    createdAt: new Date().toISOString()
+  });
+  call.updatedAt = new Date().toISOString();
+  saveCalls(calls);
+  return call;
+}
+
+async function sendLiveAiUpdate() {
+  const replyBox = document.getElementById("liveAiReply");
+  const sendButton = document.getElementById("sendLiveAiReplyBtn");
+  const loading = document.getElementById("liveAiLoading");
+  const update = replyBox?.value.trim() || "";
+
+  if (!update) {
+    showCallMessage("Type what happened next first.", "warn");
+    replyBox?.focus();
+    return;
+  }
+
+  const call = saveCurrentCall({ silent: true });
+  saveLiveAiMessage(call.id, "user", update);
+  if (replyBox) replyBox.value = "";
+  renderLiveAiConversation(getActiveCall());
+
+  sendButton.disabled = true;
+  loading?.classList.remove("hidden");
+  clearCallMessage();
+
+  try {
+    const latestCall = getActiveCall();
+    const payload = {
+      mode: "live_followup",
+      currentCall: {
+        customer: latestCall.customer || "",
+        company: latestCall.company || "",
+        reference: latestCall.reference || "",
+        phone: latestCall.phone || "",
+        scratch: latestCall.scratch || "",
+        notes: Array.isArray(latestCall.notes) ? latestCall.notes.map((note) => note.text) : []
+      },
+      initialAdvice: latestCall.aiAdvice || "",
+      liveMessages: getLiveAiMessages(latestCall).map((message) => ({
+        role: message.role,
+        text: message.text
+      })),
+      procedures: prepareProceduresForAi(),
+      similarCalls: findSimilarResolvedCalls(latestCall, 5)
+    };
+
+    const response = await fetch("/.netlify/functions/call-assistant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Live AI follow-up is unavailable.");
+    }
+
+    const reply = String(data.reply || data.advice || "").trim();
+    if (!reply) {
+      throw new Error("AI returned no next step.");
+    }
+
+    saveLiveAiMessage(call.id, "assistant", reply);
+    renderLiveAiConversation(getActiveCall());
+    renderCallHistory();
+    showCallMessage("Next-step guidance added.", "good");
+    replyBox?.focus();
+  } catch (error) {
+    showCallMessage(error.message || "Could not continue the AI conversation.", "warn");
+  } finally {
+    sendButton.disabled = false;
+    loading?.classList.add("hidden");
+  }
+}
+
 async function askAiForCallHelp() {
   const fields = readCurrentCallFields();
   const hasCurrentInfo =
@@ -5710,8 +5842,10 @@ async function askAiForCallHelp() {
 
     if (text) text.textContent = advice;
     renderAiAdvice(advice);
+    renderLiveAiConversation(getActiveCall());
     renderCallHistory();
-    showCallMessage("AI recommendation added to this call.", "good");
+    showCallMessage("AI recommendation added. Use Send Update as the call changes.", "good");
+    document.getElementById("liveAiReply")?.focus();
   } catch (error) {
     showCallMessage(error.message || "Could not reach the AI helper.", "warn");
   } finally {
@@ -5766,6 +5900,13 @@ function initializeCalls() {
   document.getElementById("resolveCallBtn")?.addEventListener("click", beginResolveCall);
   document.getElementById("editResolutionBtn")?.addEventListener("click", editResolvedCallResolution);
   document.getElementById("askCallAiBtn")?.addEventListener("click", askAiForCallHelp);
+  document.getElementById("sendLiveAiReplyBtn")?.addEventListener("click", sendLiveAiUpdate);
+  document.getElementById("liveAiReply")?.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      sendLiveAiUpdate();
+    }
+  });
   document.getElementById("copyAiCallBtn")?.addEventListener("click", copyAiCallAdvice);
   document.getElementById("findSimilarCallsBtn")?.addEventListener("click", renderSimilarResolvedCalls);
   document.getElementById("reviewResolutionBtn")?.addEventListener("click", startResolutionReview);
