@@ -434,6 +434,68 @@ async function clearYardPageImages(sessionId) {
   });
 }
 
+async function getAllYardPageImagesForSession(sessionId) {
+  if (!sessionId) return [];
+
+  const db = await openYardDb();
+
+  return new Promise((resolve, reject) => {
+    const results = [];
+    const tx = db.transaction(YARD_PAGE_STORE, "readonly");
+    const store = tx.objectStore(YARD_PAGE_STORE);
+    const request = store.openCursor();
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+
+      if (cursor.value?.sessionId === sessionId) {
+        results.push(cursor.value);
+      }
+
+      cursor.continue();
+    };
+
+    tx.oncomplete = () => {
+      db.close();
+      results.sort((a, b) => Number(a.pageNumber || 0) - Number(b.pageNumber || 0));
+      resolve(results);
+    };
+
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
+async function restoreYardPageImages(records = []) {
+  if (!Array.isArray(records) || !records.length) return;
+
+  const db = await openYardDb();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(YARD_PAGE_STORE, "readwrite");
+    const store = tx.objectStore(YARD_PAGE_STORE);
+
+    records.forEach((record) => {
+      if (!record?.key || !record?.sessionId || !record?.pageNumber || !record?.dataUrl) return;
+      store.put(record);
+    });
+
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
+
 function renderYardDashboard() {
   const session = loadYardSession();
   const loaded = session.units.length;
@@ -3447,7 +3509,7 @@ document.addEventListener("keydown", (event) => {
 // ==========================================================
 
 const CALLS_STORAGE_KEY = "penskeCallsV1";
-const PLAYBOOK_BACKUP_VERSION = 1;
+const PLAYBOOK_BACKUP_VERSION = 2;
 let activeCallId = null;
 let callHistoryFilter = "all";
 let pendingBackupImport = null;
@@ -4374,12 +4436,54 @@ function mergeById(currentItems, importedItems) {
   });
 }
 
-function buildPlaybookBackup() {
+function collectExtraPenskeStorage() {
+  const knownKeys = new Set([
+    CALLS_STORAGE_KEY,
+    VEHICLE_LOG_STORAGE_KEY,
+    YARD_SESSION_KEY
+  ]);
+
+  const extras = {};
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.toLowerCase().startsWith("penske")) continue;
+    if (knownKeys.has(key)) continue;
+
+    extras[key] = localStorage.getItem(key);
+  }
+
+  return extras;
+}
+
+function restoreExtraPenskeStorage(extras = {}, mode = "merge") {
+  if (!extras || typeof extras !== "object" || Array.isArray(extras)) return;
+
+  Object.entries(extras).forEach(([key, value]) => {
+    if (!String(key).toLowerCase().startsWith("penske")) return;
+    if (typeof value !== "string") return;
+
+    if (mode === "replace" || localStorage.getItem(key) === null) {
+      localStorage.setItem(key, value);
+    }
+  });
+}
+
+async function buildPlaybookBackup() {
   // Make sure typed current-call fields are not lost before export.
   const fields = readCurrentCallFields();
   const hasTypedCallData = Object.values(fields).some(Boolean);
   if (hasTypedCallData || activeCallId) {
     saveCurrentCall({ silent: true });
+  }
+
+  const yardSession = loadYardSession();
+  let yardPageImages = [];
+
+  try {
+    yardPageImages = await getAllYardPageImagesForSession(yardSession.sessionId);
+  } catch (error) {
+    console.warn("Could not include Yard Check page images in backup.", error);
   }
 
   return {
@@ -4388,7 +4492,12 @@ function buildPlaybookBackup() {
     exportedAt: new Date().toISOString(),
     data: {
       calls: loadCalls(),
-      vehicleLog: loadVehicleLogEntries()
+      vehicleLog: loadVehicleLogEntries(),
+      yardCheck: {
+        session: yardSession,
+        pageImages: yardPageImages
+      },
+      extraLocalStorage: collectExtraPenskeStorage()
     }
   };
 }
@@ -4405,14 +4514,40 @@ function downloadJsonFile(filename, data) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function exportPlaybookBackup() {
-  const backup = buildPlaybookBackup();
-  const stamp = new Date().toISOString().slice(0, 10);
-  downloadJsonFile(`penske-playbook-backup-${stamp}.json`, backup);
-  showCallMessage("Backup exported. Keep the JSON file somewhere you can find it later.", "good");
+function showMasterBackupStatus(message, kind = "good") {
+  const status = document.getElementById("playbookBackupStatus");
+  if (!status) return;
+
+  status.textContent = message;
+  status.className = `master-backup-status ${kind}`;
+  status.classList.remove("hidden");
 }
 
-function validateBackupPayload(payload) {
+async function exportPlaybookBackup() {
+  try {
+    showMasterBackupStatus("Building full backup...", "info");
+
+    const backup = await buildPlaybookBackup();
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    downloadJsonFile(`penske-playbook-full-backup-${stamp}.json`, backup);
+
+    const yardUnits = backup.data.yardCheck?.session?.units?.length || 0;
+    const yardPages = backup.data.yardCheck?.pageImages?.length || 0;
+
+    showMasterBackupStatus(
+      `Full backup exported: ${backup.data.calls.length} calls, ${backup.data.vehicleLog.length} vehicle log entries, ${yardUnits} Yard Check units, and ${yardPages} saved Yard Check page image${yardPages === 1 ? "" : "s"}.`,
+      "good"
+    );
+
+    showCallMessage("Full app backup exported.", "good");
+  } catch (error) {
+    showMasterBackupStatus(error.message || "Could not export the full backup.", "warn");
+    showCallMessage(error.message || "Could not export the full backup.", "warn");
+  }
+}
+
+function normalizeBackupPayload(payload) {
   if (!payload || typeof payload !== "object") {
     throw new Error("That file is not a valid Playbook backup.");
   }
@@ -4421,11 +4556,57 @@ function validateBackupPayload(payload) {
     throw new Error("That JSON file is not recognized as a Penske Playbook backup.");
   }
 
+  // Backward compatibility with Backup V1.
+  if (Number(payload.backupVersion || 1) === 1) {
+    if (!Array.isArray(payload.data.calls) || !Array.isArray(payload.data.vehicleLog)) {
+      throw new Error("The backup file is missing Calls or Vehicle Log data.");
+    }
+
+    return {
+      ...payload,
+      backupVersion: 1,
+      data: {
+        calls: payload.data.calls,
+        vehicleLog: payload.data.vehicleLog,
+        yardCheck: {
+          session: makeEmptyYardSession(),
+          pageImages: []
+        },
+        extraLocalStorage: {}
+      }
+    };
+  }
+
   if (!Array.isArray(payload.data.calls) || !Array.isArray(payload.data.vehicleLog)) {
     throw new Error("The backup file is missing Calls or Vehicle Log data.");
   }
 
-  return payload;
+  const yardCheck = payload.data.yardCheck || {};
+
+  return {
+    ...payload,
+    data: {
+      calls: payload.data.calls,
+      vehicleLog: payload.data.vehicleLog,
+      yardCheck: {
+        session:
+          yardCheck.session && Array.isArray(yardCheck.session.units)
+            ? yardCheck.session
+            : makeEmptyYardSession(),
+        pageImages: Array.isArray(yardCheck.pageImages) ? yardCheck.pageImages : []
+      },
+      extraLocalStorage:
+        payload.data.extraLocalStorage &&
+        typeof payload.data.extraLocalStorage === "object" &&
+        !Array.isArray(payload.data.extraLocalStorage)
+          ? payload.data.extraLocalStorage
+          : {}
+    }
+  };
+}
+
+function validateBackupPayload(payload) {
+  return normalizeBackupPayload(payload);
 }
 
 async function readBackupFile(file) {
@@ -4441,54 +4622,168 @@ async function readBackupFile(file) {
   return validateBackupPayload(payload);
 }
 
-async function chooseBackupFile(event) {
+function describePendingBackup(backup) {
+  const calls = backup.data.calls.length;
+  const vehicles = backup.data.vehicleLog.length;
+  const yardUnits = backup.data.yardCheck?.session?.units?.length || 0;
+  const yardPages = backup.data.yardCheck?.pageImages?.length || 0;
+
+  return `${calls} calls, ${vehicles} vehicle log entries, ${yardUnits} Yard Check units, ${yardPages} Yard Check page image${yardPages === 1 ? "" : "s"}`;
+}
+
+async function chooseBackupFile(event, source = "calls") {
   const file = event.target.files?.[0];
   if (!file) return;
 
   try {
     pendingBackupImport = await readBackupFile(file);
-    const panel = document.getElementById("importChoicePanel");
-    panel?.classList.remove("hidden");
-    panel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    showCallMessage(
-      `Backup ready: ${pendingBackupImport.data.calls.length} calls and ${pendingBackupImport.data.vehicleLog.length} vehicle log entries.`,
-      "good"
-    );
+
+    const callsPanel = document.getElementById("importChoicePanel");
+    const playbookPanel = document.getElementById("playbookImportChoicePanel");
+
+    if (source === "playbook") {
+      playbookPanel?.classList.remove("hidden");
+      callsPanel?.classList.add("hidden");
+      playbookPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      showMasterBackupStatus(`Backup ready: ${describePendingBackup(pendingBackupImport)}.`, "good");
+    } else {
+      callsPanel?.classList.remove("hidden");
+      playbookPanel?.classList.add("hidden");
+      callsPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      showCallMessage(`Backup ready: ${describePendingBackup(pendingBackupImport)}.`, "good");
+    }
   } catch (error) {
     pendingBackupImport = null;
+    showMasterBackupStatus(error.message || "Could not read that backup file.", "warn");
     showCallMessage(error.message || "Could not read that backup file.", "warn");
   } finally {
-    // Allows selecting the same file again later.
     event.target.value = "";
   }
 }
 
-function finishBackupImport(mode) {
+function yardSessionTimestamp(session) {
+  const value = new Date(session?.createdAt || 0).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function chooseMergedYardSession(currentSession, importedSession) {
+  const currentHasData = Array.isArray(currentSession?.units) && currentSession.units.length > 0;
+  const importedHasData = Array.isArray(importedSession?.units) && importedSession.units.length > 0;
+
+  if (!currentHasData) return importedSession;
+  if (!importedHasData) return currentSession;
+
+  return yardSessionTimestamp(importedSession) >= yardSessionTimestamp(currentSession)
+    ? importedSession
+    : currentSession;
+}
+
+async function replaceYardBackup(importedYard) {
+  const currentSession = loadYardSession();
+
+  if (currentSession.sessionId) {
+    try {
+      await clearYardPageImages(currentSession.sessionId);
+    } catch (error) {
+      console.warn("Could not clear current Yard Check page images.", error);
+    }
+  }
+
+  const importedSession = importedYard?.session || makeEmptyYardSession();
+
+  if (Array.isArray(importedSession.units) && importedSession.units.length) {
+    localStorage.setItem(YARD_SESSION_KEY, JSON.stringify(importedSession));
+  } else {
+    localStorage.removeItem(YARD_SESSION_KEY);
+  }
+
+  try {
+    await restoreYardPageImages(importedYard?.pageImages || []);
+  } catch (error) {
+    console.warn("Could not restore Yard Check page images.", error);
+  }
+}
+
+async function mergeYardBackup(importedYard) {
+  const currentSession = loadYardSession();
+  const importedSession = importedYard?.session || makeEmptyYardSession();
+  const chosenSession = chooseMergedYardSession(currentSession, importedSession);
+
+  if (!chosenSession?.units?.length) return;
+
+  const usingImported = chosenSession.sessionId === importedSession.sessionId;
+
+  if (usingImported) {
+    if (currentSession.sessionId && currentSession.sessionId !== importedSession.sessionId) {
+      try {
+        await clearYardPageImages(currentSession.sessionId);
+      } catch (error) {
+        console.warn("Could not clear older Yard Check page images.", error);
+      }
+    }
+
+    localStorage.setItem(YARD_SESSION_KEY, JSON.stringify(importedSession));
+
+    try {
+      await restoreYardPageImages(importedYard?.pageImages || []);
+    } catch (error) {
+      console.warn("Could not restore imported Yard Check page images.", error);
+    }
+  }
+}
+
+async function finishBackupImport(mode, source = "calls") {
   if (!pendingBackupImport) {
-    showCallMessage("Choose a backup file first.", "warn");
+    if (source === "playbook") {
+      showMasterBackupStatus("Choose a backup file first.", "warn");
+    } else {
+      showCallMessage("Choose a backup file first.", "warn");
+    }
     return;
   }
 
   const importedCalls = pendingBackupImport.data.calls;
   const importedVehicles = pendingBackupImport.data.vehicleLog;
+  const importedYard = pendingBackupImport.data.yardCheck;
+  const importedExtras = pendingBackupImport.data.extraLocalStorage;
 
   if (mode === "replace") {
     const okay = window.confirm(
-      "Replace current Calls and Vehicle Log with the selected backup? This will overwrite the saved data on this device."
+      "Replace current saved Penske Playbook data on this device with this backup? Calls, Vehicle Log, Yard Check, saved Yard Check pages, and other saved app data can be overwritten."
     );
     if (!okay) return;
 
     saveCalls(importedCalls);
     saveVehicleLogEntries(importedVehicles);
+    await replaceYardBackup(importedYard);
+
+    // Clear other Penske-prefixed saved keys before restoring backed-up extras.
+    const keysToRemove = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (
+        key &&
+        key.toLowerCase().startsWith("penske") &&
+        ![CALLS_STORAGE_KEY, VEHICLE_LOG_STORAGE_KEY, YARD_SESSION_KEY].includes(key)
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    restoreExtraPenskeStorage(importedExtras, "replace");
   } else {
     saveCalls(mergeById(loadCalls(), importedCalls));
     saveVehicleLogEntries(mergeById(loadVehicleLogEntries(), importedVehicles));
+    await mergeYardBackup(importedYard);
+    restoreExtraPenskeStorage(importedExtras, "merge");
   }
 
   activeCallId = null;
   pendingBackupImport = null;
 
   document.getElementById("importChoicePanel")?.classList.add("hidden");
+  document.getElementById("playbookImportChoicePanel")?.classList.add("hidden");
+
   newCall();
   renderCallHistory();
 
@@ -4496,27 +4791,57 @@ function finishBackupImport(mode) {
     renderVehicleLogList();
   }
 
-  showCallMessage(
+  if (typeof renderYardDashboard === "function") {
+    renderYardDashboard();
+    renderYardImportReview();
+    renderYardResearchList();
+    renderYardListBrowser();
+  }
+
+  const message =
     mode === "replace"
-      ? "Backup imported. Current saved data was replaced."
-      : "Backup imported and merged with the data already on this device.",
-    "good"
-  );
+      ? "Full backup imported. Saved app data was replaced."
+      : "Full backup imported and merged with the saved data already on this device.";
+
+  showCallMessage(message, "good");
+  showMasterBackupStatus(message, "good");
 }
 
-function resetEverything() {
+function cancelBackupImport() {
+  pendingBackupImport = null;
+  document.getElementById("importChoicePanel")?.classList.add("hidden");
+  document.getElementById("playbookImportChoicePanel")?.classList.add("hidden");
+  showCallMessage("Import canceled.", "neutral");
+  showMasterBackupStatus("Import canceled.", "info");
+}
+
+async function resetEverything() {
   const firstConfirm = window.confirm(
-    "Reset ALL saved Calls and Vehicle Log data on this device? Export a backup first if you may want this data later."
+    "Reset ALL saved Penske Playbook data on this device? This includes Calls, Vehicle Log, Yard Check, saved Yard Check page images, and other saved app data. Export a backup first if you may want it later."
   );
   if (!firstConfirm) return;
 
   const secondConfirm = window.confirm(
-    "Final confirmation: this will permanently clear your saved call experiences, resolutions, lessons, current/open call, and Vehicle Log from this browser. Continue?"
+    "Final confirmation: permanently clear the saved app data from this browser?"
   );
   if (!secondConfirm) return;
 
-  localStorage.removeItem(CALLS_STORAGE_KEY);
-  localStorage.removeItem(VEHICLE_LOG_STORAGE_KEY);
+  const yardSession = loadYardSession();
+
+  try {
+    await clearYardPageImages(yardSession.sessionId);
+  } catch (error) {
+    console.warn("Could not clear Yard Check page images.", error);
+  }
+
+  const keysToRemove = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key && key.toLowerCase().startsWith("penske")) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
 
   activeCallId = null;
   pendingBackupImport = null;
@@ -4524,6 +4849,10 @@ function resetEverything() {
   clearCurrentCallFields();
   document.getElementById("resolutionPanel")?.classList.add("hidden");
   document.getElementById("importChoicePanel")?.classList.add("hidden");
+  document.getElementById("playbookImportChoicePanel")?.classList.add("hidden");
+  document.getElementById("yardImportReview")?.classList.add("hidden");
+  document.getElementById("yardModePanel")?.classList.add("hidden");
+  document.getElementById("yardListBrowser")?.classList.add("hidden");
 
   const similarResults = document.getElementById("similarCallResults");
   if (similarResults) {
@@ -4538,16 +4867,14 @@ function resetEverything() {
     renderVehicleLogList();
   }
 
-  showCallMessage(
-    "Saved Calls and Vehicle Log cleared from this device. Your Playbook procedures and Training content were not deleted.",
-    "good"
-  );
-}
+  if (typeof renderYardDashboard === "function") {
+    renderYardDashboard();
+    renderYardImportReview();
+    renderYardResearchList();
+  }
 
-function cancelBackupImport() {
-  pendingBackupImport = null;
-  document.getElementById("importChoicePanel")?.classList.add("hidden");
-  showCallMessage("Import canceled.", "neutral");
+  showCallMessage("All saved Penske Playbook data was cleared from this device.", "good");
+  showMasterBackupStatus("All saved Penske Playbook data was cleared from this device.", "good");
 }
 
 function prepareProceduresForAi() {
@@ -4839,11 +5166,21 @@ function initializeCalls() {
   document.getElementById("importBackupBtn")?.addEventListener("click", () => {
     document.getElementById("importBackupFile")?.click();
   });
-  document.getElementById("importBackupFile")?.addEventListener("change", chooseBackupFile);
-  document.getElementById("mergeBackupBtn")?.addEventListener("click", () => finishBackupImport("merge"));
-  document.getElementById("replaceBackupBtn")?.addEventListener("click", () => finishBackupImport("replace"));
+  document.getElementById("importBackupFile")?.addEventListener("change", (event) => chooseBackupFile(event, "calls"));
+  document.getElementById("mergeBackupBtn")?.addEventListener("click", () => finishBackupImport("merge", "calls"));
+  document.getElementById("replaceBackupBtn")?.addEventListener("click", () => finishBackupImport("replace", "calls"));
   document.getElementById("cancelImportBtn")?.addEventListener("click", cancelBackupImport);
   document.getElementById("resetEverythingBtn")?.addEventListener("click", resetEverything);
+
+  document.getElementById("playbookExportAllBtn")?.addEventListener("click", exportPlaybookBackup);
+  document.getElementById("playbookImportAllBtn")?.addEventListener("click", () => {
+    document.getElementById("playbookImportAllFile")?.click();
+  });
+  document.getElementById("playbookImportAllFile")?.addEventListener("change", (event) => chooseBackupFile(event, "playbook"));
+  document.getElementById("playbookMergeAllBtn")?.addEventListener("click", () => finishBackupImport("merge", "playbook"));
+  document.getElementById("playbookReplaceAllBtn")?.addEventListener("click", () => finishBackupImport("replace", "playbook"));
+  document.getElementById("playbookCancelImportAllBtn")?.addEventListener("click", cancelBackupImport);
+  document.getElementById("playbookResetAllBtn")?.addEventListener("click", resetEverything);
 
   document.getElementById("cancelResolutionBtn")?.addEventListener("click", () => {
     document.getElementById("resolutionPanel")?.classList.add("hidden");
