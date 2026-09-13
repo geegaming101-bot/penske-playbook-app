@@ -3137,6 +3137,46 @@ function finishBackupImport(mode) {
   );
 }
 
+function resetEverything() {
+  const firstConfirm = window.confirm(
+    "Reset ALL saved Calls and Vehicle Log data on this device? Export a backup first if you may want this data later."
+  );
+  if (!firstConfirm) return;
+
+  const secondConfirm = window.confirm(
+    "Final confirmation: this will permanently clear your saved call experiences, resolutions, lessons, current/open call, and Vehicle Log from this browser. Continue?"
+  );
+  if (!secondConfirm) return;
+
+  localStorage.removeItem(CALLS_STORAGE_KEY);
+  localStorage.removeItem(VEHICLE_LOG_STORAGE_KEY);
+
+  activeCallId = null;
+  pendingBackupImport = null;
+
+  clearCurrentCallFields();
+  document.getElementById("resolutionPanel")?.classList.add("hidden");
+  document.getElementById("importChoicePanel")?.classList.add("hidden");
+
+  const similarResults = document.getElementById("similarCallResults");
+  if (similarResults) {
+    similarResults.classList.add("hidden");
+    similarResults.innerHTML = "";
+  }
+
+  renderActiveCall();
+  renderCallHistory();
+
+  if (typeof renderVehicleLogList === "function") {
+    renderVehicleLogList();
+  }
+
+  showCallMessage(
+    "Saved Calls and Vehicle Log cleared from this device. Your Playbook procedures and Training content were not deleted.",
+    "good"
+  );
+}
+
 function cancelBackupImport() {
   pendingBackupImport = null;
   document.getElementById("importChoicePanel")?.classList.add("hidden");
@@ -3430,6 +3470,7 @@ function initializeCalls() {
   document.getElementById("mergeBackupBtn")?.addEventListener("click", () => finishBackupImport("merge"));
   document.getElementById("replaceBackupBtn")?.addEventListener("click", () => finishBackupImport("replace"));
   document.getElementById("cancelImportBtn")?.addEventListener("click", cancelBackupImport);
+  document.getElementById("resetEverythingBtn")?.addEventListener("click", resetEverything);
 
   document.getElementById("cancelResolutionBtn")?.addEventListener("click", () => {
     document.getElementById("resolutionPanel")?.classList.add("hidden");
