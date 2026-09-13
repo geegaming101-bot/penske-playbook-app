@@ -762,14 +762,23 @@ function searchYardUnit() {
           If you physically found this unit, add it to the Research List.
           The app will not assume why it is missing from the report.
         </p>
-        <button class="secondary-btn" type="button" data-yard-add-unlisted="${escapeHtml(query)}">
-          Add to Research
-        </button>
+        <div class="call-actions">
+          <button class="primary-btn" type="button" data-yard-add-unlisted-checked="${escapeHtml(query)}">
+            Add to Checked
+          </button>
+          <button class="secondary-btn" type="button" data-yard-add-unlisted-research="${escapeHtml(query)}">
+            Add to Research
+          </button>
+        </div>
       </article>
     `;
 
-    result.querySelector("[data-yard-add-unlisted]")?.addEventListener("click", () => {
-      addUnlistedYardUnit(query);
+    result.querySelector("[data-yard-add-unlisted-checked]")?.addEventListener("click", () => {
+      addUnlistedYardUnit(query, "checked");
+    });
+
+    result.querySelector("[data-yard-add-unlisted-research]")?.addEventListener("click", () => {
+      addUnlistedYardUnit(query, "research");
     });
 
     return;
@@ -858,11 +867,14 @@ function buildYardUnitResultCard(unit) {
       </label>
 
       <div class="call-actions">
-        <button class="primary-btn" type="button" data-yard-mark-checked="${escapeHtml(unit.id)}">
-          ${unit.checked ? "Checked ✓" : "Mark Checked"}
+        <button class="primary-btn" type="button" data-yard-toggle-checked="${escapeHtml(unit.id)}">
+          ${unit.checked ? "Uncheck" : "Mark Checked"}
         </button>
         <button class="secondary-btn" type="button" data-yard-toggle-research="${escapeHtml(unit.id)}">
           ${unit.researchNeeded ? "Remove Research Flag" : "Mark for Research"}
+        </button>
+        <button class="secondary-btn danger-outline" type="button" data-yard-remove-unit="${escapeHtml(unit.id)}">
+          Remove Unit
         </button>
       </div>
 
@@ -890,30 +902,37 @@ function attachYardUnitResultEvents() {
     });
   });
 
-  document.querySelectorAll("[data-yard-mark-checked]").forEach((button) => {
+  document.querySelectorAll("[data-yard-toggle-checked]").forEach((button) => {
     button.addEventListener("click", () => {
-      const unitId = button.dataset.yardMarkChecked;
+      const unitId = button.dataset.yardToggleChecked;
+      const session = loadYardSession();
+      const unit = session.units.find((item) => item.id === unitId);
+      if (!unit) return;
+
       const note = getYardNoteValue(unitId);
+      const nextChecked = !unit.checked;
 
       updateYardUnit(unitId, {
-        checked: true,
+        checked: nextChecked,
         yardNote: note
       });
 
-      const input = document.getElementById("yardUnitSearch");
-      const result = document.getElementById("yardUnitResult");
-      const session = loadYardSession();
-      const unit = session.units.find((item) => item.id === unitId);
+      if (nextChecked) {
+        const input = document.getElementById("yardUnitSearch");
+        const result = document.getElementById("yardUnitResult");
 
-      if (input) input.value = "";
-      if (result) {
-        result.innerHTML = `
-          <div class="yard-next-unit">
-            Unit ${escapeHtml(unit?.unitNumber || "")} checked. Ready for the next unit.
-          </div>
-        `;
+        if (input) input.value = "";
+        if (result) {
+          result.innerHTML = `
+            <div class="yard-next-unit">
+              Unit ${escapeHtml(unit.unitNumber)} checked. Ready for the next unit.
+            </div>
+          `;
+        }
+        input?.focus();
+      } else {
+        searchYardUnit();
       }
-      input?.focus();
     });
   });
 
@@ -928,11 +947,16 @@ function attachYardUnitResultEvents() {
 
       updateYardUnit(unitId, {
         researchNeeded: !unit.researchNeeded,
-        checked: true,
         yardNote: note
       });
 
       searchYardUnit();
+    });
+  });
+
+  document.querySelectorAll("[data-yard-remove-unit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      removeYardUnit(button.dataset.yardRemoveUnit);
     });
   });
 }
@@ -951,10 +975,59 @@ function updateYardUnit(unitId, changes) {
   saveYardSession(session);
 }
 
-function addUnlistedYardUnit(unitNumber) {
+function removeYardUnit(unitId) {
+  const session = loadYardSession();
+  const unit = session.units.find((item) => item.id === unitId);
+
+  if (!unit) return;
+
+  const confirmed = window.confirm(
+    `Remove unit ${unit.unitNumber} from this Yard Check session completely?`
+  );
+
+  if (!confirmed) return;
+
+  session.units = session.units.filter((item) => item.id !== unitId);
+  saveYardSession(session);
+
+  const searchInput = document.getElementById("yardUnitSearch");
+  const result = document.getElementById("yardUnitResult");
+
+  if (searchInput) {
+    searchInput.value = "";
+  }
+
+  if (result) {
+    result.innerHTML = `
+      <div class="yard-next-unit">
+        Unit ${escapeHtml(unit.unitNumber)} removed from this Yard Check session.
+      </div>
+    `;
+  }
+
+  renderYardImportReview();
+  renderYardResearchList();
+  renderYardListBrowser();
+  searchInput?.focus();
+}
+
+function addUnlistedYardUnit(unitNumber, mode = "research") {
   const session = loadYardSession();
 
-  if (session.units.some((unit) => unit.unitNumber === unitNumber)) {
+  const existing = session.units.find((unit) => unit.unitNumber === unitNumber);
+
+  if (existing) {
+    if (mode === "checked") {
+      existing.checked = true;
+    } else {
+      existing.researchNeeded = true;
+    }
+
+    if (!existing.yardNote) {
+      existing.yardNote = "Physically found but not on imported Yard Check.";
+    }
+
+    saveYardSession(session);
     searchYardUnit();
     return;
   }
@@ -971,8 +1044,8 @@ function addUnlistedYardUnit(unitNumber) {
     comments: "",
     confidence: "high",
     physicalLocation: "",
-    checked: true,
-    researchNeeded: true,
+    checked: mode === "checked",
+    researchNeeded: mode === "research",
     yardNote: "Physically found but not on imported Yard Check.",
     unlisted: true
   };
@@ -1164,6 +1237,7 @@ function renderYardResearchList() {
         </div>
         <div class="yard-row-actions">
           <button class="secondary-btn small-btn" type="button" data-yard-research-open="${escapeHtml(unit.id)}">Open Unit</button>
+          <button class="secondary-btn small-btn" type="button" data-yard-research-remove="${escapeHtml(unit.id)}">Remove Research</button>
           ${unit.page ? `<button class="secondary-btn small-btn" type="button" data-yard-research-view-page="${unit.page}">View Page</button>` : ""}
         </div>
       </article>
@@ -1173,6 +1247,15 @@ function renderYardResearchList() {
   target.querySelectorAll("[data-yard-research-open]").forEach((button) => {
     button.addEventListener("click", () => {
       openYardUnitFromList(button.dataset.yardResearchOpen);
+    });
+  });
+
+  target.querySelectorAll("[data-yard-research-remove]").forEach((button) => {
+    button.addEventListener("click", () => {
+      updateYardUnit(button.dataset.yardResearchRemove, {
+        researchNeeded: false
+      });
+      renderYardResearchList();
     });
   });
 
