@@ -2559,3 +2559,159 @@ button {
     gap: 2px;
   }
 }
+
+
+/* ==============================
+   V2.9 — Clickable Yard Lists
+   ============================== */
+
+.yard-stat-button {
+  appearance: none;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.yard-stat-button:active {
+  transform: scale(0.985);
+}
+
+.yard-stat-button:hover,
+.yard-stat-button:focus-visible {
+  border-color: #9ca3af;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.yard-list-browser-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.yard-list-search {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.yard-list-search input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 10px 13px;
+  font: inherit;
+  font-size: 1rem;
+}
+
+.yard-list-results {
+  display: grid;
+  gap: 9px;
+}
+
+.yard-list-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 13px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.yard-list-open-unit {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 13px;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.yard-list-open-unit:hover,
+.yard-list-open-unit:focus-visible {
+  background: #f9fafb;
+}
+
+.yard-list-row-main {
+  min-width: 0;
+}
+
+.yard-list-row-main strong,
+.yard-list-row-main span,
+.yard-list-row-main small {
+  display: block;
+}
+
+.yard-list-row-main span {
+  color: #6b7280;
+  margin-top: 3px;
+  font-size: 0.84rem;
+}
+
+.yard-list-row-main small {
+  color: #4b5563;
+  margin-top: 3px;
+  font-size: 0.78rem;
+}
+
+.yard-list-row-badges {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.yard-mini-badge {
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 0.66rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.yard-mini-badge.checked {
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.yard-mini-badge.research {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.yard-location-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.yard-location-btn small {
+  font-size: 0.62rem;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+@media (max-width: 520px) {
+  .yard-list-browser-top {
+    align-items: stretch;
+  }
+
+  .yard-list-open-unit {
+    align-items: flex-start;
+  }
+
+  .yard-list-row-badges {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+}
