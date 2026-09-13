@@ -3074,3 +3074,38 @@ button {
     width: 100%;
   }
 }
+
+
+/* V5.2 Yard productivity + fast field mode */
+.yard-speed-panel{
+  margin:16px 0;
+  padding:16px;
+  border:1px solid var(--border, #d9dde3);
+  border-radius:16px;
+  background:var(--card, #fff);
+}
+.yard-speed-heading,.yard-speed-actions,.yard-speed-stats{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.yard-speed-heading h3{margin:2px 0 0}
+#yardElapsedTime{font-size:1.65rem;font-variant-numeric:tabular-nums}
+.yard-speed-stats{margin:14px 0}
+.yard-speed-stats>div{flex:1;padding:10px;border-radius:12px;background:rgba(127,127,127,.08)}
+.yard-speed-stats span{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
+.yard-speed-stats strong{display:block;margin-top:4px;font-size:1.1rem}
+.yard-speed-actions>*{flex:1}
+.yard-already-handled{
+  margin:-2px 0 12px;
+  padding:10px 12px;
+  border-radius:10px;
+  font-weight:800;
+  letter-spacing:.03em;
+  background:rgba(127,127,127,.12);
+}
+.yard-session-action-stack{display:grid;gap:10px}
+@media (max-width:560px){
+  .yard-speed-actions{display:grid;grid-template-columns:1fr 1fr}
+}
