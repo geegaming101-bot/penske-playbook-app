@@ -2801,3 +2801,105 @@ button {
     align-items: center;
   }
 }
+
+
+/* ==============================
+   V3.2 — Yard Status Highlighting
+   ============================== */
+
+.yard-stats {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.attention-stat {
+  border-color: #f59e0b;
+}
+
+.yard-attention-legend {
+  border: 1px solid #e5e7eb;
+  border-left: 5px solid #f59e0b;
+  border-radius: 12px;
+  background: #fffbeb;
+  padding: 12px 14px;
+}
+
+.yard-attention-legend p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.yard-attention-badge {
+  display: inline-block;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 8px;
+  margin: 3px 0 5px;
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.yard-attention-badge.deadline {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.yard-attention-badge.accident {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.yard-attention-badge.pm {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.yard-attention-badge.available {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.yard-attention-badge.wash {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Colored edge/background cues. These are visual labels, not workflow decisions. */
+.yard-attention-deadline {
+  border-left: 6px solid #dc2626 !important;
+  background: #fff7f7;
+}
+
+.yard-attention-accident {
+  border-left: 6px solid #f97316 !important;
+  background: #fffaf5;
+}
+
+.yard-attention-pm {
+  border-left: 6px solid #eab308 !important;
+  background: #fffdf3;
+}
+
+.yard-attention-available {
+  border-left: 6px solid #16a34a !important;
+  background: #f7fff9;
+}
+
+.yard-attention-wash {
+  border-left: 6px solid #2563eb !important;
+  background: #f7fbff;
+}
+
+@media (max-width: 720px) {
+  .yard-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .attention-stat {
+    grid-column: 1 / -1;
+  }
+}
