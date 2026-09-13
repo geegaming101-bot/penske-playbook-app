@@ -1153,45 +1153,47 @@ function closeYardListBrowser() {
 }
 
 function getYardAttentionStatus(unit) {
-  const text = [
-    unit?.vehicleStatus,
-    unit?.comments,
-    unit?.pmInfo
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toUpperCase();
+  // Only the printed SYSTEM STATUS controls automatic highlighting.
+  // PM Info, comments, physical location, owning location, and notes do NOT.
+  const status = String(unit?.vehicleStatus || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
 
-  if (!text) return null;
+  if (!status) return null;
 
-  if (/\bDEADLINE\b/.test(text)) {
+  // DEADLINE may OCR as DEAD LINE or DEAD-LINE.
+  if (/\bDEAD[\s-]*LINE\b/.test(status)) {
     return { key: "deadline", label: "DEADLINE" };
   }
 
-  if (/\bACCIDENT\b/.test(text)) {
+  if (/\bACCIDENT\b/.test(status)) {
     return { key: "accident", label: "ACCIDENT" };
   }
 
   if (
-    /\bPREVENTIVE MAINTENANCE\b/.test(text) ||
-    /\bPREVENTATIVE MAINTENANCE\b/.test(text) ||
-    /(^|[^A-Z])PM([^A-Z]|$)/.test(text)
+    /\bPREVENTIVE MAINTENANCE\b/.test(status) ||
+    /\bPREVENTATIVE MAINTENANCE\b/.test(status) ||
+    /(^|[^A-Z])PM([^A-Z]|$)/.test(status)
   ) {
     return { key: "pm", label: "PM" };
   }
 
-  if (/\bAVAILABLE NOW\b/.test(text)) {
+  if (/\bAVAILABLE NOW\b/.test(status)) {
     return { key: "available", label: "AVAILABLE NOW" };
   }
 
-  if (/\bAVAILABLE\b/.test(text)) {
+  if (/\bAVAILABLE\b/.test(status)) {
     return { key: "available", label: "AVAILABLE" };
   }
 
-  if (/\bWASH\b/.test(text)) {
+  if (/\bWASH\b/.test(status)) {
     return { key: "wash", label: "WASH" };
   }
 
+  // Examples such as OUT - LOCAL, OUT TO ####-##, and DUE IN ####-##
+  // remain unhighlighted unless the actual System Status itself matches
+  // one of the statuses above.
   return null;
 }
 
