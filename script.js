@@ -22,8 +22,8 @@ const procedureGrid = document.getElementById("procedureGrid");
 const howToGrid = document.getElementById("howToGrid");
 const procedureSearch = document.getElementById("procedureSearch");
 
-const EVERYDAY_PROCEDURE_IDS = [1, 2, 3, 18];
-const HOW_TO_PROCEDURE_IDS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19];
+const EVERYDAY_PROCEDURE_IDS = [1, 2, 3, 13, 18];
+const HOW_TO_PROCEDURE_IDS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19];
 
 function everydayProcedures() {
   return procedures.filter((procedure) => EVERYDAY_PROCEDURE_IDS.includes(procedure.id));
