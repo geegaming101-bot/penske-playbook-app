@@ -429,6 +429,11 @@
         <div id="yardImportStatus" class="yard-status hidden"></div>
       </section>
 
+      <section id="yardCompactImportSummary" class="yard-compact-import hidden">
+        <div><span class="mini-label">CURRENT YARD CHECK</span><strong id="yardCompactImportText">No active import</strong></div>
+        <button id="yardToggleImportBtn" class="secondary-btn small-btn" type="button">View Import</button>
+      </section>
+
       <section id="yardImportReview" class="yard-card hidden">
         <span class="mini-label">STEP 2 · VERIFY</span>
         <h3>Import Review</h3>
@@ -442,7 +447,7 @@
 
       <section id="yardModePanel" class="yard-card hidden">
         <span class="mini-label">STEP 3 · YARD MODE</span>
-        <h3>Search a Unit</h3>
+        <div class="yard-field-mode-heading"><div><h3>Search a Unit</h3><p>See truck → enter unit → page/status → location → Checked → next.</p></div><span class="yard-field-badge">FIELD MODE</span></div>
         <p class="yard-muted">Type the unit number you physically see.</p>
 
         <label class="yard-search-wrap" for="yardUnitSearch">
