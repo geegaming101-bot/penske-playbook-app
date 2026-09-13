@@ -580,52 +580,73 @@ const procedures = [
 
   {
     id: 15,
-    title: "Non-Rev Unit to Others",
+    title: "Hike for Res",
     category: "Fleet",
     type: "procedure",
-    description: "Handle a unit that needs to be moved in the system from one location to another.",
+    description: "Find a reservation that needs a unit, locate an available unit, request the hike, and complete the Non-Rev.",
     sections: [
       {
-        heading: "When to Use",
+        heading: "Find Where a Hike Is Needed",
         items: [
-          "Use when a unit is physically at one location but RentalNet shows it under another location and the unit needs to be properly moved/check-in processed."
+          "Go to Whiteboard.",
+          "Filter for Light Duty or Medium Duty.",
+          "Filter the Through Date for one day ahead.",
+          "Do not worry about 0386-10, 0387-10, or 0417-10. Your training note says these locations already have a lot of hikers.",
+          "Do Light Duty first.",
+          "Look at TOTAL RESERVATION and Assigned Reservation.",
+          "If TOTAL RESERVATION and Assigned Reservation are not the same, you will need to request a hike to send a unit to that reservation location.",
+          "Once you find a location that has a reservation but no unit for the reservation, identify what type of unit they need.",
+          "Search Whiteboard for local agents that may have that vehicle available."
         ]
       },
       {
-        heading: "Process",
+        heading: "Find and Assign the Unit",
         items: [
-          "Change RentalNet from your current location to the location that currently holds the unit in the system.",
-          "Enter the unit number and check it in.",
-          "During check-in, verify damage.",
-          "Verify mileage.",
-          "Verify fuel.",
-          "Go to the Quote tab.",
-          "Open the Non-Rev Contract tab.",
-          "Select the driver.",
-          "Choose the drop-off and first driver using your normal workflow.",
-          "Enter the unit number again when prompted.",
-          "Verify damage, mileage, and fuel again.",
-          "Verify the pickup and drop-off locations are correct.",
-          "Submit the request.",
-          "Enter your initials in Requested By.",
-          "Use customer reason: customer drop off.",
-          "Open the Non-Rev reservation.",
-          "Change RentalNet to the destination location.",
+          "Filter again and make sure the Through Date is one day ahead.",
+          "Find an available unit.",
+          "Write down or remember the unit number.",
+          "Write down or remember the branch/location ID where that available unit is located.",
+          "Go back to the location where the reservation had no assigned unit.",
+          "Assign the available unit to that reservation."
+        ]
+      },
+      {
+        heading: "Request the Hike",
+        items: [
+          "Go to Action → Request Hike.",
+          "Fill out the requested information.",
+          "For Hike From, enter the location the hike is coming from.",
+          "Enter today's date in the applicable date field.",
+          "After entering the date, click out of the field.",
+          "The Needed By date should auto-generate after you click out of the date field.",
+          "Verify the auto-generated Needed By date.",
           "Enter the unit number.",
-          "Check the unit in at the destination location."
+          "The VIN should populate automatically.",
+          "Select SAVE.",
+          "Select YES.",
+          "Record the Needed By date and time."
         ]
       },
       {
-        heading: "Important",
+        heading: "Complete the Non-Rev",
         items: [
-          "Verify the pickup and drop-off locations BEFORE creating the Non-Rev reservation.",
-          "Verify the unit number carefully before continuing."
+          "Change the location in RentalNet so you can do the Non-Rev.",
+          "Change to the location where the unit you want is currently located.",
+          "Go to Quote → Non-Rev.",
+          "Fill out the Non-Rev information correctly.",
+          "Complete the Non-Rev."
         ]
       },
       {
         heading: "Memory Tip",
         items: [
-          "Check in at current system location → create Non-Rev → switch to destination → check in there."
+          "Whiteboard → find shortage → find available unit → assign unit → Action → Request Hike → Save → record Needed By → change location → Quote → Non-Rev."
+        ]
+      },
+      {
+        heading: "Local Training Note",
+        items: [
+          "The note about 0386-10, 0387-10, and 0417-10 is from your local training notes. Keep it as a reference for your current workflow rather than treating it as a company-wide rule."
         ]
       }
     ]
