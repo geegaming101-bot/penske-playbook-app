@@ -305,23 +305,39 @@
       </div>
 
       <div class="yard-stats" aria-label="Yard check progress">
-        <div class="yard-stat-card">
+        <button class="yard-stat-card yard-stat-button" type="button" data-yard-filter="loaded">
           <strong id="yardLoadedCount">0</strong>
           <span>Loaded</span>
-        </div>
-        <div class="yard-stat-card">
+        </button>
+        <button class="yard-stat-card yard-stat-button" type="button" data-yard-filter="checked">
           <strong id="yardCheckedCount">0</strong>
           <span>Checked</span>
-        </div>
-        <div class="yard-stat-card">
+        </button>
+        <button class="yard-stat-card yard-stat-button" type="button" data-yard-filter="research">
           <strong id="yardResearchCount">0</strong>
           <span>Research</span>
-        </div>
-        <div class="yard-stat-card">
+        </button>
+        <button class="yard-stat-card yard-stat-button" type="button" data-yard-filter="remaining">
           <strong id="yardRemainingCount">0</strong>
           <span>Remaining</span>
-        </div>
+        </button>
       </div>
+
+      <section id="yardListBrowser" class="yard-card hidden">
+        <div class="yard-list-browser-top">
+          <div>
+            <span class="mini-label">YARD LIST</span>
+            <h3 id="yardListTitle">Loaded Units</h3>
+          </div>
+          <button id="closeYardListBtn" class="secondary-btn small-btn" type="button">Close</button>
+        </div>
+
+        <label class="yard-list-search" for="yardListSearch">
+          <input id="yardListSearch" type="search" autocomplete="off" placeholder="Search unit number..." />
+        </label>
+
+        <div id="yardListResults" class="yard-list-results"></div>
+      </section>
 
       <section class="yard-card">
         <span class="mini-label">STEP 1 · IMPORT</span>
