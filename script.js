@@ -292,6 +292,7 @@ const YARD_DB_NAME = "PenskePlaybookYardCheck";
 const YARD_DB_VERSION = 1;
 const YARD_PAGE_STORE = "yardPages";
 let yardActiveListFilter = "loaded";
+let yardSelectedSourceFiles = [];
 
 function makeEmptyYardSession() {
   return {
@@ -525,22 +526,112 @@ function setYardStatus(message, kind = "info") {
   status.classList.remove("hidden");
 }
 
-function renderYardSelectedFiles() {
+function detectYardFileType(file) {
+  const name = String(file?.name || "").toLowerCase();
+  const type = String(file?.type || "").toLowerCase();
+
+  if (type.startsWith("image/")) return "image";
+  if (type === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+  if (
+    name.endsWith(".xlsx") ||
+    name.endsWith(".xls") ||
+    name.endsWith(".csv") ||
+    type.includes("spreadsheet") ||
+    type.includes("excel") ||
+    type === "text/csv"
+  ) return "spreadsheet";
+
+  return "unknown";
+}
+
+function yardFileTypeLabel(file) {
+  const kind = detectYardFileType(file);
+  if (kind === "image") return "Photo";
+  if (kind === "pdf") return "PDF";
+  if (kind === "spreadsheet") {
+    return String(file?.name || "").toLowerCase().endsWith(".csv") ? "CSV" : "Excel";
+  }
+  return "Unsupported";
+}
+
+function handleYardFileSelection() {
   const input = document.getElementById("yardPhotoInput");
+  yardSelectedSourceFiles = Array.from(input?.files || []);
+  renderYardSelectedFiles();
+}
+
+function moveYardSelectedFile(index, direction) {
+  const target = index + direction;
+  if (
+    index < 0 ||
+    target < 0 ||
+    index >= yardSelectedSourceFiles.length ||
+    target >= yardSelectedSourceFiles.length
+  ) return;
+
+  const next = [...yardSelectedSourceFiles];
+  [next[index], next[target]] = [next[target], next[index]];
+  yardSelectedSourceFiles = next;
+  renderYardSelectedFiles();
+}
+
+function removeYardSelectedFile(index) {
+  yardSelectedSourceFiles = yardSelectedSourceFiles.filter((_, i) => i !== index);
+  renderYardSelectedFiles();
+}
+
+function renderYardSelectedFiles() {
   const target = document.getElementById("yardSelectedFiles");
   if (!target) return;
 
-  const files = Array.from(input?.files || []);
+  const files = yardSelectedSourceFiles;
 
   if (!files.length) {
-    target.innerHTML = `<span>No photos selected yet.</span>`;
+    target.innerHTML = `<span>No Yard Check files selected yet.</span>`;
     return;
   }
 
   target.innerHTML = `
-    <strong>${files.length} page photo${files.length === 1 ? "" : "s"} selected</strong>
-    <span>Page numbers will follow this upload order.</span>
+    <div class="yard-selected-summary">
+      <strong>${files.length} source file${files.length === 1 ? "" : "s"} selected</strong>
+      <span>The order below controls numbering between separate files.</span>
+    </div>
+
+    <div class="yard-source-list">
+      ${files.map((file, index) => {
+        const kind = yardFileTypeLabel(file);
+        const unsupported = detectYardFileType(file) === "unknown";
+        return `
+          <article class="yard-source-row ${unsupported ? "unsupported" : ""}">
+            <div class="yard-source-info">
+              <span class="yard-source-order">${index + 1}</span>
+              <div>
+                <strong>${escapeHtml(file.name)}</strong>
+                <span>${escapeHtml(kind)} · ${Math.max(1, Math.round(file.size / 1024))} KB</span>
+              </div>
+            </div>
+            <div class="yard-source-actions">
+              <button class="secondary-btn small-btn" type="button" data-yard-file-up="${index}" ${index === 0 ? "disabled" : ""}>Move Up</button>
+              <button class="secondary-btn small-btn" type="button" data-yard-file-down="${index}" ${index === files.length - 1 ? "disabled" : ""}>Move Down</button>
+              <button class="secondary-btn small-btn danger-outline" type="button" data-yard-file-remove="${index}">Remove</button>
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
   `;
+
+  target.querySelectorAll("[data-yard-file-up]").forEach((button) => {
+    button.addEventListener("click", () => moveYardSelectedFile(Number(button.dataset.yardFileUp), -1));
+  });
+
+  target.querySelectorAll("[data-yard-file-down]").forEach((button) => {
+    button.addEventListener("click", () => moveYardSelectedFile(Number(button.dataset.yardFileDown), 1));
+  });
+
+  target.querySelectorAll("[data-yard-file-remove]").forEach((button) => {
+    button.addEventListener("click", () => removeYardSelectedFile(Number(button.dataset.yardFileRemove)));
+  });
 }
 
 async function compressYardPhoto(file) {
@@ -576,18 +667,241 @@ async function compressYardPhoto(file) {
   }
 }
 
+async function renderPdfPagesToImages(file) {
+  if (!window.pdfjsLib) {
+    throw new Error("PDF support did not load. Check your internet connection and reload the app.");
+  }
+
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+  const pages = [];
+
+  for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex += 1) {
+    const page = await pdf.getPage(pageIndex);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const maxDimension = 1800;
+    const scale = Math.min(
+      2,
+      Math.max(1, maxDimension / Math.max(baseViewport.width, baseViewport.height))
+    );
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(viewport.width));
+    canvas.height = Math.max(1, Math.round(viewport.height));
+
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    pages.push({
+      dataUrl: canvas.toDataURL("image/jpeg", 0.86),
+      sourcePage: pageIndex
+    });
+  }
+
+  return pages;
+}
+
+function normalizeSpreadsheetHeader(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_\-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function spreadsheetValue(row, aliases) {
+  const entries = Object.entries(row || {});
+  for (const alias of aliases) {
+    const target = normalizeSpreadsheetHeader(alias);
+    const match = entries.find(([key]) => normalizeSpreadsheetHeader(key) === target);
+    if (match && match[1] !== undefined && match[1] !== null) {
+      return String(match[1]).trim();
+    }
+  }
+  return "";
+}
+
+function mapSpreadsheetRowToYardUnit(row, context) {
+  const unitRaw = spreadsheetValue(row, [
+    "Unit", "Unit Number", "Unit #", "Unit No", "Equipment Number", "Equipment #"
+  ]);
+
+  const unitNumber = String(unitRaw || "").replace(/\D/g, "");
+  if (!unitNumber) return null;
+
+  return {
+    id: `${context.sessionId}-${context.pageNumber}-${context.rowIndex}-${unitNumber}`,
+    unitNumber,
+    page: context.pageNumber,
+    pageImageAvailable: false,
+    sourceName: context.sourceName,
+    sourceSheet: context.sheetName,
+    owningLocation: spreadsheetValue(row, [
+      "Owning Location", "Owner Location", "Location", "Owning Loc", "Owner"
+    ]),
+    vehicleStatus: spreadsheetValue(row, [
+      "Vehicle Status", "Status", "Unit Status"
+    ]),
+    vehicleType: spreadsheetValue(row, [
+      "Vehicle Type", "Type", "Vehicle Class", "Class", "Equipment Type"
+    ]),
+    mileage: spreadsheetValue(row, [
+      "Mileage", "Miles", "Odometer"
+    ]),
+    pmInfo: spreadsheetValue(row, [
+      "PM Info", "PM", "Preventive Maintenance", "Preventative Maintenance"
+    ]),
+    comments: spreadsheetValue(row, [
+      "Comments", "Comment", "Notes", "Remarks"
+    ]),
+    confidence: "high",
+    physicalLocation: "",
+    checked: false,
+    researchNeeded: false,
+    yardNote: "",
+    unlisted: false
+  };
+}
+
+async function parseSpreadsheetYardFile(file, sessionId, firstPageNumber) {
+  if (!window.XLSX) {
+    throw new Error("Excel/CSV support did not load. Check your internet connection and reload the app.");
+  }
+
+  const bytes = await file.arrayBuffer();
+  const workbook = window.XLSX.read(bytes, { type: "array" });
+  const units = [];
+  const sheets = [];
+
+  let pageNumber = firstPageNumber;
+
+  workbook.SheetNames.forEach((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    const rows = window.XLSX.utils.sheet_to_json(sheet, {
+      defval: "",
+      raw: false
+    });
+
+    let added = 0;
+
+    rows.forEach((row, rowIndex) => {
+      const unit = mapSpreadsheetRowToYardUnit(row, {
+        sessionId,
+        pageNumber,
+        rowIndex,
+        sourceName: file.name,
+        sheetName
+      });
+
+      if (unit) {
+        units.push(unit);
+        added += 1;
+      }
+    });
+
+    sheets.push({
+      sheetName,
+      pageNumber,
+      rows: rows.length,
+      units: added
+    });
+
+    pageNumber += 1;
+  });
+
+  return {
+    units,
+    sheets,
+    nextPageNumber: pageNumber
+  };
+}
+
+async function analyzeYardImagePage({
+  sessionId,
+  pageNumber,
+  dataUrl,
+  sourceName,
+  sourcePage,
+  collectedUnits
+}) {
+  await saveYardPageImage(
+    sessionId,
+    pageNumber,
+    dataUrl,
+    sourcePage ? `${sourceName} · PDF page ${sourcePage}` : sourceName
+  );
+
+  const response = await fetch("/.netlify/functions/yard-check-analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      pageNumber,
+      imageDataUrl: dataUrl
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || `Page ${pageNumber} could not be analyzed.`);
+  }
+
+  const pageUnits = Array.isArray(data.units) ? data.units : [];
+
+  pageUnits.forEach((unit, unitIndex) => {
+    const unitNumber = String(unit.unitNumber || "").replace(/\D/g, "");
+    if (!unitNumber) return;
+
+    collectedUnits.push({
+      id: `${sessionId}-${pageNumber}-${unitIndex}-${unitNumber}`,
+      unitNumber,
+      page: pageNumber,
+      pageImageAvailable: true,
+      sourceName,
+      sourcePage: sourcePage || null,
+      owningLocation: String(unit.owningLocation || "").trim(),
+      vehicleStatus: String(unit.vehicleStatus || "").trim(),
+      vehicleType: String(unit.vehicleType || "").trim(),
+      mileage: String(unit.mileage || "").trim(),
+      pmInfo: String(unit.pmInfo || "").trim(),
+      comments: String(unit.comments || "").trim(),
+      confidence: normalizeYardConfidence(unit.confidence),
+      physicalLocation: "",
+      checked: false,
+      researchNeeded: false,
+      yardNote: "",
+      unlisted: false
+    });
+  });
+}
+
 async function analyzeYardPhotos() {
-  const input = document.getElementById("yardPhotoInput");
-  const files = Array.from(input?.files || []);
+  const files = yardSelectedSourceFiles;
   const button = document.getElementById("analyzeYardPhotosBtn");
 
   if (!files.length) {
-    setYardStatus("Select your Yard Check page photos first.", "warn");
+    setYardStatus("Select at least one Yard Check photo, PDF, Excel, or CSV file first.", "warn");
+    return;
+  }
+
+  const unsupported = files.filter((file) => detectYardFileType(file) === "unknown");
+  if (unsupported.length) {
+    setYardStatus(
+      `Unsupported file: ${unsupported[0].name}. Use an image, PDF, XLSX/XLS, or CSV file.`,
+      "warn"
+    );
     return;
   }
 
   if (files.length > 15) {
-    setYardStatus("For this version, import up to 15 report pages at one time.", "warn");
+    setYardStatus("For this version, import up to 15 source files at one time.", "warn");
     return;
   }
 
@@ -602,68 +916,92 @@ async function analyzeYardPhotos() {
     }
 
     const collectedUnits = [];
+    const sourceSummary = [];
+    let pageNumber = 1;
 
-    for (let index = 0; index < files.length; index += 1) {
-      const pageNumber = index + 1;
-      const file = files[index];
+    for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
+      const file = files[fileIndex];
+      const kind = detectYardFileType(file);
 
-      setYardStatus(`Preparing page ${pageNumber} of ${files.length}...`);
+      if (kind === "image") {
+        setYardStatus(`Preparing ${file.name} as page ${pageNumber}...`);
+        const dataUrl = await compressYardPhoto(file);
 
-      const dataUrl = await compressYardPhoto(file);
-      await saveYardPageImage(sessionId, pageNumber, dataUrl, file.name);
-
-      setYardStatus(`Reading page ${pageNumber} of ${files.length} with AI...`);
-
-      const response = await fetch("/.netlify/functions/yard-check-analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        setYardStatus(`Reading page ${pageNumber} with AI...`);
+        await analyzeYardImagePage({
+          sessionId,
           pageNumber,
-          imageDataUrl: dataUrl
-        })
-      });
+          dataUrl,
+          sourceName: file.name,
+          sourcePage: null,
+          collectedUnits
+        });
 
-      const data = await response.json().catch(() => ({}));
+        sourceSummary.push({
+          type: "image",
+          name: file.name,
+          pages: 1
+        });
 
-      if (!response.ok) {
-        throw new Error(
-          data.error ||
-          `Page ${pageNumber} could not be analyzed.`
-        );
+        pageNumber += 1;
+        continue;
       }
 
-      const pageUnits = Array.isArray(data.units) ? data.units : [];
+      if (kind === "pdf") {
+        setYardStatus(`Opening PDF ${file.name}...`);
+        const pdfPages = await renderPdfPagesToImages(file);
 
-      pageUnits.forEach((unit, unitIndex) => {
-        const unitNumber = String(unit.unitNumber || "").replace(/\D/g, "");
+        for (let pdfIndex = 0; pdfIndex < pdfPages.length; pdfIndex += 1) {
+          const pdfPage = pdfPages[pdfIndex];
 
-        if (!unitNumber) return;
+          setYardStatus(
+            `Reading ${file.name} · PDF page ${pdfPage.sourcePage} of ${pdfPages.length} as Yard page ${pageNumber}...`
+          );
 
-        collectedUnits.push({
-          id: `${sessionId}-${pageNumber}-${unitIndex}-${unitNumber}`,
-          unitNumber,
-          page: pageNumber,
-          owningLocation: String(unit.owningLocation || "").trim(),
-          vehicleStatus: String(unit.vehicleStatus || "").trim(),
-          vehicleType: String(unit.vehicleType || "").trim(),
-          mileage: String(unit.mileage || "").trim(),
-          pmInfo: String(unit.pmInfo || "").trim(),
-          comments: String(unit.comments || "").trim(),
-          confidence: normalizeYardConfidence(unit.confidence),
-          physicalLocation: "",
-          checked: false,
-          researchNeeded: false,
-          yardNote: "",
-          unlisted: false
+          await analyzeYardImagePage({
+            sessionId,
+            pageNumber,
+            dataUrl: pdfPage.dataUrl,
+            sourceName: file.name,
+            sourcePage: pdfPage.sourcePage,
+            collectedUnits
+          });
+
+          pageNumber += 1;
+        }
+
+        sourceSummary.push({
+          type: "pdf",
+          name: file.name,
+          pages: pdfPages.length
         });
-      });
+
+        continue;
+      }
+
+      if (kind === "spreadsheet") {
+        setYardStatus(`Reading spreadsheet ${file.name}...`);
+
+        const parsed = await parseSpreadsheetYardFile(file, sessionId, pageNumber);
+        collectedUnits.push(...parsed.units);
+
+        sourceSummary.push({
+          type: "spreadsheet",
+          name: file.name,
+          pages: parsed.sheets.length,
+          sheets: parsed.sheets
+        });
+
+        pageNumber = parsed.nextPageNumber;
+      }
     }
 
     const session = {
       sessionId,
       createdAt: new Date().toISOString(),
-      sourceType: "photos",
-      sourcePages: files.length,
+      sourceType: files.length === 1 ? detectYardFileType(files[0]) : "mixed",
+      sourcePages: Math.max(0, pageNumber - 1),
+      sources: sourceSummary,
       units: collectedUnits
     };
 
@@ -675,7 +1013,7 @@ async function analyzeYardPhotos() {
     const needsReview = collectedUnits.filter((unit) => unit.confidence !== "high").length;
 
     setYardStatus(
-      `Imported ${collectedUnits.length} unit row${collectedUnits.length === 1 ? "" : "s"} from ${files.length} page${files.length === 1 ? "" : "s"}. ${needsReview} need${needsReview === 1 ? "s" : ""} extra verification.`,
+      `Imported ${collectedUnits.length} unit row${collectedUnits.length === 1 ? "" : "s"} across ${session.sourcePages} Yard page${session.sourcePages === 1 ? "" : "s"}. ${needsReview} need${needsReview === 1 ? "s" : ""} extra verification.`,
       "good"
     );
   } catch (error) {
@@ -737,7 +1075,7 @@ function renderYardImportReview() {
           <small>${escapeHtml([unit.vehicleStatus, unit.owningLocation].filter(Boolean).join(" · ") || "Verify against original page")}</small>
         </div>
         <div class="yard-row-actions">
-          <button class="secondary-btn small-btn" type="button" data-yard-view-page="${unit.page}">View Page</button>
+          ${unit.pageImageAvailable !== false ? `<button class="secondary-btn small-btn" type="button" data-yard-view-page="${unit.page}">View Page</button>` : ""}
           <button class="secondary-btn small-btn" type="button" data-yard-correct="${escapeHtml(unit.id)}">Correct</button>
         </div>
       </article>
@@ -872,7 +1210,7 @@ function buildYardUnitResultCard(unit) {
           ${yardAttentionBadge(unit)}
           <h3>Unit ${escapeHtml(unit.unitNumber)}</h3>
         </div>
-        ${unit.page ? `<button class="secondary-btn small-btn" type="button" data-yard-result-view-page="${unit.page}">View Page</button>` : ""}
+        ${unit.page && unit.pageImageAvailable !== false ? `<button class="secondary-btn small-btn" type="button" data-yard-result-view-page="${unit.page}">View Page</button>` : ""}
       </div>
 
       <dl class="yard-detail-grid">
@@ -1451,6 +1789,7 @@ async function clearYardSession() {
 
   const photoInput = document.getElementById("yardPhotoInput");
   if (photoInput) photoInput.value = "";
+  yardSelectedSourceFiles = [];
 
   document.getElementById("yardImportStatus")?.classList.add("hidden");
   document.getElementById("yardImportReview")?.classList.add("hidden");
@@ -1467,6 +1806,10 @@ async function clearYardSession() {
 }
 
 function initializeYardCheck() {
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
   document.getElementById("yardBackBtn")?.addEventListener("click", showHowToMode);
   document.querySelectorAll("[data-yard-filter]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1476,7 +1819,7 @@ function initializeYardCheck() {
   document.getElementById("closeYardListBtn")?.addEventListener("click", closeYardListBrowser);
   document.getElementById("yardListSearch")?.addEventListener("input", renderYardListBrowser);
 
-  document.getElementById("yardPhotoInput")?.addEventListener("change", renderYardSelectedFiles);
+  document.getElementById("yardPhotoInput")?.addEventListener("change", handleYardFileSelection);
   document.getElementById("analyzeYardPhotosBtn")?.addEventListener("click", analyzeYardPhotos);
   document.getElementById("clearYardSessionBtn")?.addEventListener("click", clearYardSession);
   document.getElementById("startYardModeBtn")?.addEventListener("click", startYardMode);
