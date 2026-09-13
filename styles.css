@@ -2000,3 +2000,86 @@ button {
     width: 100%;
   }
 }
+
+
+/* ==========================================================
+   CALL EXPERIENCE V2.2 — REUSE RESOLUTION + BACKUP / IMPORT
+   ========================================================== */
+
+.similar-call-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.backup-panel {
+  margin: 0.9rem 0 1rem;
+  padding: 0.9rem;
+  border: 1px solid #dbe3ec;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.backup-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.backup-panel-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.backup-panel p {
+  margin: 0.55rem 0 0.8rem;
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.backup-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.hidden-file-input {
+  display: none !important;
+}
+
+.import-choice-panel {
+  margin-top: 0.9rem;
+  padding: 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.import-choice-panel.hidden {
+  display: none;
+}
+
+.danger-outline {
+  border-color: #b91c1c !important;
+  color: #991b1b !important;
+}
+
+.danger-outline:hover {
+  background: #fef2f2 !important;
+}
+
+@media (max-width: 620px) {
+  .similar-call-actions,
+  .backup-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .similar-call-actions .small-btn,
+  .backup-actions button {
+    width: 100%;
+  }
+}
