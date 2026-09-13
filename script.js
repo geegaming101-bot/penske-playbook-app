@@ -11,13 +11,27 @@ let currentScenario = null;
 
 const playbookModeBtn = document.getElementById("playbookModeBtn");
 const trainingModeBtn = document.getElementById("trainingModeBtn");
+const howToModeBtn = document.getElementById("howToModeBtn");
 
 const playbookHome = document.getElementById("playbookHome");
+const howToView = document.getElementById("howToView");
 const procedureView = document.getElementById("procedureView");
 const trainingView = document.getElementById("trainingView");
 
 const procedureGrid = document.getElementById("procedureGrid");
+const howToGrid = document.getElementById("howToGrid");
 const procedureSearch = document.getElementById("procedureSearch");
+
+const EVERYDAY_PROCEDURE_IDS = [1, 2, 3, 18];
+const HOW_TO_PROCEDURE_IDS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19];
+
+function everydayProcedures() {
+  return procedures.filter((procedure) => EVERYDAY_PROCEDURE_IDS.includes(procedure.id));
+}
+
+function howToProcedures() {
+  return procedures.filter((procedure) => HOW_TO_PROCEDURE_IDS.includes(procedure.id));
+}
 
 const backToPlaybookBtn = document.getElementById("backToPlaybookBtn");
 
@@ -36,7 +50,7 @@ const resetScoreBtn = document.getElementById("resetScoreBtn");
 const scoreDisplay = document.getElementById("scoreDisplay");
 
 function initializeApp() {
-  renderProcedures(procedures);
+  renderProcedures(everydayProcedures());
   updateScoreDisplay();
   showPlaybookHome();
 }
@@ -47,11 +61,11 @@ initializeApp();
 // PLAYBOOK HOME
 // ==============================
 
-function renderProcedures(procedureList) {
-  procedureGrid.innerHTML = "";
+function renderProcedures(procedureList, targetGrid = procedureGrid) {
+  targetGrid.innerHTML = "";
 
   if (procedureList.length === 0) {
-    procedureGrid.innerHTML = `
+    targetGrid.innerHTML = `
       <div class="empty-state">
         <p>No procedures found.</p>
       </div>
@@ -59,13 +73,14 @@ function renderProcedures(procedureList) {
     return;
   }
 
-  procedureList.forEach((procedure) => {
+  procedureList.forEach((procedure, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "procedure-button";
+    const displayNumber = index + 1;
 
     button.innerHTML = `
-      <span class="procedure-button-number">${procedure.id}</span>
+      <span class="procedure-button-number">${displayNumber}</span>
       <span class="procedure-button-text">
         <strong>${procedure.title}</strong>
         <small>${procedure.description}</small>
@@ -77,7 +92,7 @@ function renderProcedures(procedureList) {
       openProcedure(procedure.id);
     });
 
-    procedureGrid.appendChild(button);
+    targetGrid.appendChild(button);
   });
 }
 
@@ -90,7 +105,13 @@ function openProcedure(procedureId) {
   }
 
   currentProcedure = procedure;
-  procedureNumber.textContent = `Procedure #${procedure.id}`;
+
+  const everydayIndex = everydayProcedures().findIndex((item) => item.id === procedure.id);
+  const howToIndex = howToProcedures().findIndex((item) => item.id === procedure.id);
+  const displayNumber = everydayIndex >= 0 ? everydayIndex + 1 : howToIndex + 1;
+  const displayLabel = everydayIndex >= 0 ? "Playbook" : "How-To";
+
+  procedureNumber.textContent = `${displayLabel} #${displayNumber}`;
   procedureTitle.textContent = procedure.title;
   procedureDescription.textContent = procedure.description;
   procedureContent.innerHTML = "";
@@ -102,11 +123,14 @@ function openProcedure(procedureId) {
     renderCallbackBuilder();
   } else if (procedure.id === 3) {
     renderVehicleLog();
+  } else if (procedure.id === 18) {
+    renderDistrictBranchesTool(procedure);
   } else {
     renderStandardProcedure(procedure);
   }
 
   playbookHome.classList.add("hidden");
+  howToView?.classList.add("hidden");
   trainingView.classList.add("hidden");
     document.getElementById("callsView")?.classList.add("hidden");
     document.getElementById("callsModeBtn")?.classList.remove("active");
@@ -183,6 +207,73 @@ function renderStandardProcedure(procedure) {
       procedureContent.appendChild(divider);
     }
   });
+}
+
+function renderDistrictBranchesTool(procedure) {
+  const branchLines = procedure.sections
+    .flatMap((section) => section.items || [])
+    .filter((item) => /^\d{4}-\d{2}\s+—\s+/.test(item));
+
+  const branches = branchLines.map((line) => {
+    const separatorIndex = line.indexOf("—");
+    return {
+      code: line.slice(0, separatorIndex).trim(),
+      name: line.slice(separatorIndex + 1).trim()
+    };
+  });
+
+  procedureContent.innerHTML = `
+    <section class="district-branch-tool">
+      <label class="branch-search-wrap" for="districtBranchSearch">
+        <span class="mini-label">SEARCH BRANCHES</span>
+        <input id="districtBranchSearch" type="search" placeholder="City or branch code..." autocomplete="off" />
+      </label>
+      <div id="districtBranchResults" class="district-branch-results"></div>
+    </section>
+  `;
+
+  const input = document.getElementById("districtBranchSearch");
+  const results = document.getElementById("districtBranchResults");
+
+  function draw(query = "") {
+    const term = query.trim().toLowerCase();
+    const filtered = branches.filter((branch) =>
+      !term ||
+      branch.code.toLowerCase().includes(term) ||
+      branch.name.toLowerCase().includes(term)
+    );
+
+    if (!filtered.length) {
+      results.innerHTML = `<div class="empty-state"><strong>No branch found.</strong><span>Try a city or branch code.</span></div>`;
+      return;
+    }
+
+    results.innerHTML = filtered.map((branch) => `
+      <article class="district-branch-card">
+        <div class="district-branch-info">
+          <strong>${escapeHtml(branch.name)}</strong>
+          <span>${escapeHtml(branch.code)}</span>
+        </div>
+        <button class="secondary-btn small-btn branch-copy-btn" type="button" data-copy-branch="${escapeHtml(branch.code)}">Copy Code</button>
+      </article>
+    `).join("");
+
+    results.querySelectorAll("[data-copy-branch]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const code = button.dataset.copyBranch || "";
+        try {
+          await navigator.clipboard.writeText(code);
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy Code"; }, 1200);
+        } catch {
+          window.prompt("Copy branch code:", code);
+        }
+      });
+    });
+  }
+
+  input?.addEventListener("input", (event) => draw(event.target.value));
+  draw();
 }
 
 // ==============================
@@ -2006,13 +2097,14 @@ function showVehicleFormMessage(message, type) {
 
 procedureSearch.addEventListener("input", (event) => {
   const searchTerm = event.target.value.trim().toLowerCase();
+  const baseList = howToProcedures();
 
   if (!searchTerm) {
-    renderProcedures(procedures);
+    renderProcedures(baseList, howToGrid);
     return;
   }
 
-  const filteredProcedures = procedures.filter((procedure) => {
+  const filteredProcedures = baseList.filter((procedure) => {
     const searchableText = [
       procedure.id,
       procedure.title,
@@ -2029,7 +2121,7 @@ procedureSearch.addEventListener("input", (event) => {
     return searchableText.includes(searchTerm);
   });
 
-  renderProcedures(filteredProcedures);
+  renderProcedures(filteredProcedures, howToGrid);
 });
 
 // ==============================
@@ -2037,14 +2129,25 @@ procedureSearch.addEventListener("input", (event) => {
 // ==============================
 
 backToPlaybookBtn.addEventListener("click", () => {
+  const returnToHowTo = currentProcedure && HOW_TO_PROCEDURE_IDS.includes(currentProcedure.id);
   currentProcedure = null;
-  showPlaybookHome();
+
+  if (returnToHowTo) {
+    showHowToMode();
+  } else {
+    showPlaybookHome();
+  }
 });
 
 playbookModeBtn.addEventListener("click", () => {
   currentMode = "playbook";
   setActiveModeButton("playbook");
   showPlaybookHome();
+});
+
+howToModeBtn?.addEventListener("click", () => {
+  currentMode = "howto";
+  showHowToMode();
 });
 
 trainingModeBtn.addEventListener("click", () => {
@@ -2055,10 +2158,15 @@ trainingModeBtn.addEventListener("click", () => {
 
 function setActiveModeButton(mode) {
   playbookModeBtn.classList.remove("active");
+  howToModeBtn?.classList.remove("active");
   trainingModeBtn.classList.remove("active");
 
   if (mode === "playbook") {
     playbookModeBtn.classList.add("active");
+  }
+
+  if (mode === "howto") {
+    howToModeBtn?.classList.add("active");
   }
 
   if (mode === "training") {
@@ -2070,10 +2178,28 @@ function showPlaybookHome() {
   setActiveModeButton("playbook");
 
   playbookHome.classList.remove("hidden");
+  howToView?.classList.add("hidden");
   procedureView.classList.add("hidden");
   trainingView.classList.add("hidden");
+  renderProcedures(everydayProcedures());
     document.getElementById("callsView")?.classList.add("hidden");
     document.getElementById("callsModeBtn")?.classList.remove("active");
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showHowToMode() {
+  setActiveModeButton("howto");
+
+  playbookHome.classList.add("hidden");
+  procedureView.classList.add("hidden");
+  trainingView.classList.add("hidden");
+  document.getElementById("callsView")?.classList.add("hidden");
+  howToView?.classList.remove("hidden");
+  document.getElementById("callsModeBtn")?.classList.remove("active");
+
+  if (procedureSearch) procedureSearch.value = "";
+  renderProcedures(howToProcedures(), howToGrid);
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -2084,6 +2210,7 @@ function showPlaybookHome() {
 
 function showTrainingMode() {
   playbookHome.classList.add("hidden");
+  howToView?.classList.add("hidden");
   procedureView.classList.add("hidden");
   trainingView.classList.remove("hidden");
 
@@ -3440,11 +3567,13 @@ function initializeCalls() {
   callsButton.addEventListener("click", () => {
     currentMode = "calls";
     document.getElementById("playbookHome")?.classList.add("hidden");
+    document.getElementById("howToView")?.classList.add("hidden");
     document.getElementById("procedureView")?.classList.add("hidden");
     document.getElementById("trainingView")?.classList.add("hidden");
     callsView.classList.remove("hidden");
 
     document.getElementById("playbookModeBtn")?.classList.remove("active");
+    document.getElementById("howToModeBtn")?.classList.remove("active");
     document.getElementById("trainingModeBtn")?.classList.remove("active");
     callsButton.classList.add("active");
 
