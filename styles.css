@@ -1726,15 +1726,92 @@ button {
   border-bottom: 1px solid #e5e7eb;
 }
 
-.ai-call-result pre {
-  margin: 0;
-  padding: 14px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font: inherit;
-  font-size: 0.82rem;
-  line-height: 1.55;
+.ai-match-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 5px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.67rem;
+  font-weight: 900;
+}
+
+.ai-call-cards {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.ai-guidance-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #ffffff;
+}
+
+.ai-guidance-card.quick-read {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.ai-guidance-card.past-call {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.ai-guidance-card.next-steps {
+  border-color: #c4b5fd;
+  background: #faf5ff;
+}
+
+.ai-guidance-card.what-to-say {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.ai-guidance-card.ask-help {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.ai-guidance-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #475569;
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.055em;
+}
+
+.ai-guidance-body {
   color: #1f2937;
+  font-size: 0.82rem;
+  line-height: 1.48;
+}
+
+.ai-guidance-body p {
+  margin: 0;
+}
+
+.ai-guidance-body p + p {
+  margin-top: 6px;
+}
+
+.ai-guidance-body ul,
+.ai-guidance-body ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.ai-guidance-body li + li {
+  margin-top: 4px;
+}
+
+.ai-raw-text {
+  white-space: pre-wrap;
 }
 
 .small-btn {
@@ -1765,5 +1842,161 @@ button {
 
   .ai-status-badge {
     display: none;
+  }
+}
+
+
+@media (max-width: 600px) {
+  .ai-call-cards {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .ai-guidance-card {
+    padding: 10px;
+  }
+
+  .ai-guidance-body {
+    font-size: 0.79rem;
+  }
+}
+
+
+/* ==========================================================
+   CALL EXPERIENCE V2.1 — LOCAL SIMILAR CALL FINDER
+   ========================================================== */
+
+.experience-match-panel {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid #dbe3ec;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.local-only-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: #e8eef5;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.experience-match-note {
+  margin: 0.4rem 0 0.9rem;
+  color: #64748b;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.experience-find-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.similar-call-results {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+}
+
+.similar-call-card {
+  padding: 0.95rem;
+  border: 1px solid #d8e0e8;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.similar-call-card.top-match {
+  border-width: 2px;
+  border-color: #64748b;
+}
+
+.similar-call-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.similar-call-card-top > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+}
+
+.similarity-pill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.similarity-pill.strong-match {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.similarity-pill.good-match {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.similarity-pill.possible-match {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.similar-call-solution,
+.similar-call-lesson {
+  margin-top: 0.8rem;
+}
+
+.similar-call-solution p,
+.similar-call-lesson p {
+  margin: 0.3rem 0 0;
+  line-height: 1.5;
+  color: #1f2937;
+}
+
+.similar-call-lesson {
+  padding-top: 0.7rem;
+  border-top: 1px solid #edf1f5;
+}
+
+.similar-call-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.history-lesson-preview {
+  margin-top: -0.2rem !important;
+  color: #526274 !important;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 620px) {
+  .similar-call-card-top,
+  .similar-call-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .similar-call-footer .small-btn {
+    width: 100%;
   }
 }
