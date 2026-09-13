@@ -22,7 +22,7 @@ const procedureGrid = document.getElementById("procedureGrid");
 const howToGrid = document.getElementById("howToGrid");
 const procedureSearch = document.getElementById("procedureSearch");
 
-const EVERYDAY_PROCEDURE_IDS = [1, 2, 3, 13, 18];
+const EVERYDAY_PROCEDURE_IDS = [3, 13, 1, 2, 18];
 const HOW_TO_PROCEDURE_IDS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19];
 
 function everydayProcedures() {
@@ -64,12 +64,32 @@ initializeApp();
 function renderProcedures(procedureList, targetGrid = procedureGrid) {
   targetGrid.innerHTML = "";
 
-  if (procedureList.length === 0) {
-    targetGrid.innerHTML = `
-      <div class="empty-state">
-        <p>No procedures found.</p>
-      </div>
+  const isPlaybookGrid = targetGrid === procedureGrid;
+
+  if (isPlaybookGrid) {
+    const callsButton = document.createElement("button");
+    callsButton.type = "button";
+    callsButton.className = "procedure-button calls-playbook-button";
+    callsButton.innerHTML = `
+      <span class="procedure-button-number">1</span>
+      <span class="procedure-button-text">
+        <strong>Calls</strong>
+        <small>Live call notes, AI help, similar resolved calls, history, and resolutions.</small>
+      </span>
+      <span class="procedure-button-arrow">→</span>
     `;
+    callsButton.addEventListener("click", openCallsWorkspace);
+    targetGrid.appendChild(callsButton);
+  }
+
+  if (procedureList.length === 0) {
+    if (!isPlaybookGrid) {
+      targetGrid.innerHTML = `
+        <div class="empty-state">
+          <p>No procedures found.</p>
+        </div>
+      `;
+    }
     return;
   }
 
@@ -77,7 +97,7 @@ function renderProcedures(procedureList, targetGrid = procedureGrid) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "procedure-button";
-    const displayNumber = index + 1;
+    const displayNumber = index + (isPlaybookGrid ? 2 : 1);
 
     button.innerHTML = `
       <span class="procedure-button-number">${displayNumber}</span>
@@ -113,7 +133,7 @@ function openProcedure(procedureId) {
 
   const everydayIndex = everydayProcedures().findIndex((item) => item.id === procedure.id);
   const howToIndex = howToProcedures().findIndex((item) => item.id === procedure.id);
-  const displayNumber = everydayIndex >= 0 ? everydayIndex + 1 : howToIndex + 1;
+  const displayNumber = everydayIndex >= 0 ? everydayIndex + 2 : howToIndex + 1;
   const displayLabel = everydayIndex >= 0 ? "Playbook" : "How-To";
 
   procedureNumber.textContent = `${displayLabel} #${displayNumber}`;
@@ -138,7 +158,6 @@ function openProcedure(procedureId) {
   howToView?.classList.add("hidden");
   trainingView.classList.add("hidden");
     document.getElementById("callsView")?.classList.add("hidden");
-    document.getElementById("callsModeBtn")?.classList.remove("active");
   procedureView.classList.remove("hidden");
 
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -330,7 +349,6 @@ function openYardCheckWorkspace() {
   trainingView.classList.add("hidden");
   document.getElementById("callsView")?.classList.add("hidden");
   document.getElementById("yardCheckWorkspace")?.classList.remove("hidden");
-  document.getElementById("callsModeBtn")?.classList.remove("active");
 
   closeYardImportScreen(false);
   document.getElementById("yardModePanel")?.classList.remove("hidden");
@@ -3927,7 +3945,6 @@ function showPlaybookHome() {
   document.getElementById("yardCheckWorkspace")?.classList.add("hidden");
   renderProcedures(everydayProcedures());
     document.getElementById("callsView")?.classList.add("hidden");
-    document.getElementById("callsModeBtn")?.classList.remove("active");
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -3941,7 +3958,6 @@ function showHowToMode() {
   document.getElementById("yardCheckWorkspace")?.classList.add("hidden");
   document.getElementById("callsView")?.classList.add("hidden");
   howToView?.classList.remove("hidden");
-  document.getElementById("callsModeBtn")?.classList.remove("active");
 
   if (procedureSearch) procedureSearch.value = "";
   renderProcedures(howToProcedures(), howToGrid);
@@ -5720,27 +5736,28 @@ async function copyAiCallAdvice() {
   }
 }
 
+function openCallsWorkspace() {
+  currentMode = "playbook";
+  setActiveModeButton("playbook");
+
+  document.getElementById("playbookHome")?.classList.add("hidden");
+  document.getElementById("howToView")?.classList.add("hidden");
+  document.getElementById("procedureView")?.classList.add("hidden");
+  document.getElementById("trainingView")?.classList.add("hidden");
+  document.getElementById("yardCheckWorkspace")?.classList.add("hidden");
+  document.getElementById("callsView")?.classList.remove("hidden");
+
+  renderActiveCall();
+  renderCallHistory();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function initializeCalls() {
-  const callsButton = document.getElementById("callsModeBtn");
   const callsView = document.getElementById("callsView");
-  if (!callsButton || !callsView) return;
+  if (!callsView) return;
 
-  callsButton.addEventListener("click", () => {
-    currentMode = "calls";
-    document.getElementById("playbookHome")?.classList.add("hidden");
-    document.getElementById("howToView")?.classList.add("hidden");
-    document.getElementById("procedureView")?.classList.add("hidden");
-    document.getElementById("trainingView")?.classList.add("hidden");
-    document.getElementById("yardCheckWorkspace")?.classList.add("hidden");
-    callsView.classList.remove("hidden");
-
-    document.getElementById("playbookModeBtn")?.classList.remove("active");
-    document.getElementById("howToModeBtn")?.classList.remove("active");
-    document.getElementById("trainingModeBtn")?.classList.remove("active");
-    callsButton.classList.add("active");
-
-    renderActiveCall();
-    renderCallHistory();
+  document.getElementById("callsBackToPlaybookBtn")?.addEventListener("click", () => {
+    showPlaybookHome();
   });
 
   document.getElementById("saveCallBtn")?.addEventListener("click", () => saveCurrentCall());
