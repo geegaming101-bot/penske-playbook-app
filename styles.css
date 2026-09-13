@@ -2083,3 +2083,54 @@ button {
     width: 100%;
   }
 }
+
+
+/* ==========================================================
+   V2.4 — EVERYDAY PLAYBOOK + HOW-TO LIBRARY
+   ========================================================== */
+
+#playbookHome .procedure-grid {
+  margin-top: 0.8rem;
+}
+
+#playbookHome .procedure-button {
+  min-height: 88px;
+}
+
+#howToView .section-intro {
+  margin-bottom: 0.8rem;
+}
+
+#howToView .search-wrap {
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 760px) {
+  #playbookHome .procedure-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* V2.6 — District Branch Quick Lookup */
+.district-branch-tool { display:grid; gap:1rem; }
+.branch-search-wrap { display:grid; gap:.4rem; }
+.branch-search-wrap input {
+  width:100%; min-height:48px; padding:.75rem .85rem;
+  border:1px solid #cbd5e1; border-radius:12px; background:#fff;
+  font:inherit; font-size:1rem;
+}
+.branch-search-wrap input:focus { outline:2px solid #94a3b8; outline-offset:1px; }
+.district-branch-results { display:grid; gap:.65rem; }
+.district-branch-card {
+  display:flex; align-items:center; justify-content:space-between; gap:.8rem;
+  padding:.85rem; border:1px solid #dbe3ec; border-radius:13px; background:#fff;
+}
+.district-branch-info { display:flex; flex-direction:column; gap:.2rem; }
+.district-branch-info strong { color:#111827; font-size:.98rem; }
+.district-branch-info span { color:#64748b; font-size:.84rem; font-weight:800; letter-spacing:.02em; }
+.branch-copy-btn { flex:0 0 auto; }
+@media (max-width:520px) {
+  .district-branch-card { align-items:stretch; flex-direction:column; }
+  .branch-copy-btn { width:100%; }
+}
