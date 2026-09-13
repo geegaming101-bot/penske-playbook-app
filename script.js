@@ -347,6 +347,7 @@ function openYardCheckWorkspace() {
 
 function openYardImportScreen() {
   document.getElementById("yardImportScreen")?.classList.remove("hidden");
+  setYardStatus("Choose Yard Check photos, PDF, Excel, or CSV to begin.");
   document.getElementById("yardModePanel")?.classList.add("hidden");
   document.getElementById("yardListBrowser")?.classList.add("hidden");
   document.getElementById("yardSessionOptions")?.classList.add("hidden");
@@ -605,6 +606,15 @@ function handleYardFileSelection() {
   const input = document.getElementById("yardPhotoInput");
   yardSelectedSourceFiles = Array.from(input?.files || []);
   renderYardSelectedFiles();
+
+  if (!yardSelectedSourceFiles.length) return;
+  const labels = yardSelectedSourceFiles.map((file) => `${file.name} (${yardFileTypeLabel(file)})`);
+  const unsupported = yardSelectedSourceFiles.filter((file) => detectYardFileType(file) === "unknown");
+  if (unsupported.length) {
+    setYardStatus(`Unsupported file: ${unsupported[0].name}. Use JPG/PNG, PDF, XLSX/XLS, or CSV.`, "warn");
+  } else {
+    setYardStatus(`Ready to import: ${labels.join(", ")}`, "good");
+  }
 }
 
 function moveYardSelectedFile(index, direction) {
@@ -777,7 +787,7 @@ function spreadsheetValue(row, aliases) {
 
 function mapSpreadsheetRowToYardUnit(row, context) {
   const unitRaw = spreadsheetValue(row, [
-    "Unit", "Unit Number", "Unit #", "Unit No", "Equipment Number", "Equipment #"
+    "Vehicle Number", "Vehicle #", "Vehicle No", "Unit", "Unit Number", "Unit #", "Unit No", "Equipment Number", "Equipment #"
   ]);
 
   const unitNumber = String(unitRaw || "").replace(/\D/g, "");
@@ -817,57 +827,118 @@ function mapSpreadsheetRowToYardUnit(row, context) {
   };
 }
 
+function parseCsvRows(text) {
+  const rows = [];
+  let row = [], field = "", quoted = false;
+  text = String(text || "").replace(/^\uFEFF/, "");
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i += 1; }
+      else if (ch === '"') quoted = false;
+      else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") { row.push(field); field = ""; }
+    else if (ch === "\n") { row.push(field.replace(/\r$/, "")); rows.push(row); row = []; field = ""; }
+    else field += ch;
+  }
+  if (field.length || row.length) { row.push(field.replace(/\r$/, "")); rows.push(row); }
+  return rows.filter(r => r.some(v => String(v).trim() !== ""));
+}
+
+function csvRowsToObjects(rows) {
+  if (!rows.length) return [];
+  const headers = rows[0].map(v => String(v || "").trim());
+  return rows.slice(1).map(values => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h || `Column ${i + 1}`] = values[i] ?? ""; });
+    return obj;
+  });
+}
+
+function spreadsheetHeaderSummary(rows) {
+  if (!rows.length) return [];
+  return Object.keys(rows[0]).filter(Boolean);
+}
+
 async function parseSpreadsheetYardFile(file, sessionId, firstPageNumber) {
+  const lowerName = String(file?.name || "").toLowerCase();
+  const isCsv = lowerName.endsWith(".csv") || String(file?.type || "").toLowerCase() === "text/csv";
+  const units = [];
+  const sheets = [];
+  let pageNumber = firstPageNumber;
+
+  if (isCsv) {
+    const text = await file.text();
+    const matrix = parseCsvRows(text);
+    const rows = csvRowsToObjects(matrix);
+    const headers = spreadsheetHeaderSummary(rows);
+
+    rows.forEach((row, rowIndex) => {
+      const unit = mapSpreadsheetRowToYardUnit(row, {
+        sessionId, pageNumber, rowIndex, sourceName: file.name, sheetName: "CSV"
+      });
+      if (unit) units.push(unit);
+    });
+
+    sheets.push({
+      sheetName: "CSV",
+      pageNumber,
+      rows: rows.length,
+      units: units.length,
+      headers
+    });
+
+    if (!rows.length) throw new Error(`${file.name} is empty or has no readable data rows.`);
+    if (!units.length) {
+      throw new Error(
+        `${file.name} opened, but no vehicle numbers were found. Use a header such as "vehicle number", "unit number", or "unit #". Detected columns: ${headers.join(", ") || "none"}.`
+      );
+    }
+
+    return { units, sheets, nextPageNumber: pageNumber + 1 };
+  }
+
   if (!window.XLSX) {
-    throw new Error("Excel/CSV support did not load. Check your internet connection and reload the app.");
+    throw new Error("Excel reader did not load. Reload the app while online, then select the .xlsx file again. CSV files do not require the Excel reader.");
   }
 
   const bytes = await file.arrayBuffer();
-  const workbook = window.XLSX.read(bytes, { type: "array" });
-  const units = [];
-  const sheets = [];
+  let workbook;
+  try {
+    workbook = window.XLSX.read(bytes, { type: "array" });
+  } catch (error) {
+    throw new Error(`${file.name} could not be opened as an Excel workbook. Try saving it as .xlsx or CSV UTF-8.`);
+  }
 
-  let pageNumber = firstPageNumber;
+  if (!workbook.SheetNames?.length) throw new Error(`${file.name} contains no readable worksheets.`);
 
   workbook.SheetNames.forEach((sheetName) => {
     const sheet = workbook.Sheets[sheetName];
-    const rows = window.XLSX.utils.sheet_to_json(sheet, {
-      defval: "",
-      raw: false
-    });
-
+    const rows = window.XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+    const headers = spreadsheetHeaderSummary(rows);
     let added = 0;
 
     rows.forEach((row, rowIndex) => {
       const unit = mapSpreadsheetRowToYardUnit(row, {
-        sessionId,
-        pageNumber,
-        rowIndex,
-        sourceName: file.name,
-        sheetName
+        sessionId, pageNumber, rowIndex, sourceName: file.name, sheetName
       });
-
-      if (unit) {
-        units.push(unit);
-        added += 1;
-      }
+      if (unit) { units.push(unit); added += 1; }
     });
 
-    sheets.push({
-      sheetName,
-      pageNumber,
-      rows: rows.length,
-      units: added
-    });
-
+    sheets.push({ sheetName, pageNumber, rows: rows.length, units: added, headers });
     pageNumber += 1;
   });
 
-  return {
-    units,
-    sheets,
-    nextPageNumber: pageNumber
-  };
+  if (!units.length) {
+    const detected = [...new Set(sheets.flatMap(s => s.headers || []))];
+    throw new Error(
+      `${file.name} opened, but no vehicle numbers were found. Use a header such as "vehicle number", "unit number", or "unit #". Detected columns: ${detected.join(", ") || "none"}.`
+    );
+  }
+
+  return { units, sheets, nextPageNumber: pageNumber };
 }
 
 async function analyzeYardImagePage({
@@ -958,10 +1029,6 @@ async function analyzeYardPhotos() {
   button.disabled = true;
 
   try {
-    if (oldSession.sessionId) {
-      await clearYardPageImages(oldSession.sessionId);
-    }
-
     const collectedUnits = [];
     const sourceSummary = [];
     let pageNumber = 1;
@@ -1053,6 +1120,9 @@ async function analyzeYardPhotos() {
     };
 
     saveYardSession(session);
+    if (oldSession.sessionId && oldSession.sessionId !== sessionId) {
+      await clearYardPageImages(oldSession.sessionId);
+    }
     renderYardImportReview();
     renderYardCompactImportSummary();
 
