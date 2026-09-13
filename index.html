@@ -17,6 +17,7 @@
       <div class="mode-tabs" role="tablist" aria-label="App sections">
         <button id="playbookModeBtn" class="mode-btn active" type="button">Playbook</button>
         <button id="callsModeBtn" class="mode-btn" type="button">Calls</button>
+        <button id="howToModeBtn" class="mode-btn" type="button">How-To</button>
         <button id="trainingModeBtn" class="mode-btn" type="button">Training</button>
       </div>
     </div>
@@ -25,26 +26,36 @@
   <main class="app-main">
     <section id="playbookHome">
       <div class="section-intro">
-        <span class="eyebrow dark">YOUR DIGITAL NOTEBOOK</span>
-        <h2>What do you need?</h2>
-        <p>Search the playbook or choose a procedure.</p>
+        <span class="eyebrow dark">EVERYDAY TOOLS</span>
+        <h2>Your daily Playbook</h2>
+        <p>The four things you want quickest access to during the day.</p>
       </div>
-
-      <label class="search-wrap" for="procedureSearch">
-        <span class="sr-only">Search procedures</span>
-        <input
-          id="procedureSearch"
-          type="search"
-          placeholder="Search procedures..."
-          autocomplete="off"
-        />
-      </label>
 
       <div id="procedureGrid" class="procedure-grid"></div>
     </section>
 
+    <section id="howToView" class="hidden">
+      <div class="section-intro">
+        <span class="eyebrow dark">PROCEDURE REFERENCE</span>
+        <h2>How-To</h2>
+        <p>Use this when you need the steps for something you do less often.</p>
+      </div>
+
+      <label class="search-wrap" for="procedureSearch">
+        <span class="sr-only">Search how-to procedures</span>
+        <input
+          id="procedureSearch"
+          type="search"
+          placeholder="Search how-to procedures..."
+          autocomplete="off"
+        />
+      </label>
+
+      <div id="howToGrid" class="procedure-grid"></div>
+    </section>
+
     <section id="procedureView" class="hidden">
-      <button id="backToPlaybookBtn" class="back-btn" type="button">← Back to Playbook</button>
+      <button id="backToPlaybookBtn" class="back-btn" type="button">← Back</button>
 
       <article class="procedure-detail">
         <div class="procedure-detail-heading">
