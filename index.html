@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#111827" />
   <title>Penske Playbook</title>
   <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
   <header class="app-header">
@@ -396,26 +398,31 @@
 
       <section class="yard-card">
         <span class="mini-label">STEP 1 · IMPORT</span>
-        <h3>Upload Yard Check Photos</h3>
+        <h3>Import Yard Check</h3>
         <p class="yard-muted">
-          Select all report pages together and keep them in page order.
-          Photos are processed one page at a time so large reports are less likely to fail.
+          Upload report photos, a PDF, Excel workbook, or CSV file.
+          Photos and PDFs are read visually. Excel/CSV rows are mapped directly into Yard Mode.
         </p>
 
         <label class="yard-file-picker">
-          <span>Select report photos</span>
+          <span>Select Yard Check files</span>
           <input
             id="yardPhotoInput"
             type="file"
-            accept="image/*"
+            accept="image/*,.pdf,application/pdf,.xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             multiple
           />
         </label>
 
+        <div class="yard-import-help">
+          <strong>Page order:</strong> Use Move Up / Move Down before analyzing.
+          PDF pages stay in their original PDF order automatically.
+        </div>
+
         <div id="yardSelectedFiles" class="yard-selected-files"></div>
 
         <div class="call-actions">
-          <button id="analyzeYardPhotosBtn" class="primary-btn" type="button">Analyze Photos</button>
+          <button id="analyzeYardPhotosBtn" class="primary-btn" type="button">Analyze Import</button>
           <button id="clearYardSessionBtn" class="secondary-btn danger-outline" type="button">Clear Yard Session</button>
         </div>
 
