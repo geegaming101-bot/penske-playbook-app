@@ -15,7 +15,7 @@ exports.handler = async function handler(event) {
 
   try {
     body = JSON.parse(event.body || "{}");
-  } catch (error) {
+  } catch {
     return jsonResponse(400, { error: "Invalid JSON request." });
   }
 
@@ -34,41 +34,39 @@ exports.handler = async function handler(event) {
     "gpt-5.6-luna";
 
   /*
-    Keep the AI response intentionally compact.
-    The first version asked for large JSON objects for every row, which can
-    take too long on a dense Yard Check page. This version asks for compact
-    arrays and then converts them back to the object shape the browser expects.
+    V5.10 PDF / dense-page timeout fix
+
+    The previous analyzer asked the model to generate a large JSON object.
+    On dense PDF pages, formatting that JSON can consume a meaningful portion
+    of the function's time limit.
+
+    This version asks for compact pipe-delimited rows instead:
+      unit|location|status|type|mileage|pm|comments|confidence
+
+    The server converts those lines back into the exact object structure the
+    browser already expects, so no changes are required in script.js.
   */
+
   const instructions = `
-You are extracting printed vehicle rows from ONE photographed Yard Check report page.
+Read ONE printed Penske Yard Check report page.
 
-Be fast and literal.
+Extract every identifiable vehicle row.
 
-Read ONLY printed report information. Do not invent missing digits or company procedure.
-Ignore customer/company names.
-Do not infer physical yard row (RL/A/B/C/etc.).
-If text is unreadable, use "".
-If the UNIT NUMBER is unclear, use your best transcription and confidence "low".
+OUTPUT RULES:
+- Return ONLY data rows. No heading. No JSON. No markdown. No explanation.
+- One vehicle per line.
+- Each line must contain exactly 8 pipe-separated fields:
+unitNumber|owningLocation|vehicleStatus|vehicleType|mileage|pmInfo|comments|confidence
+- confidence must be high, medium, or low.
+- Keep pmInfo and comments extremely short.
+- Ignore customer/company names.
+- Do not infer physical yard row or company procedure.
+- If a field is unreadable, leave that field blank.
+- If unit number is uncertain, use the best transcription and confidence low.
+- Never add extra pipe characters inside a field.
 
-Return ONLY compact valid JSON in this exact shape:
-{
-  "rows": [
-    ["unitNumber","owningLocation","vehicleStatus","vehicleType","mileage","pmInfo","comments","confidence"]
-  ]
-}
-
-Each row has exactly 8 values in this order:
-1 unit number
-2 owning location
-3 vehicle status
-4 vehicle type
-5 mileage
-6 concise PM info
-7 concise printed status/comment
-8 confidence: high, medium, or low
-
-Keep comments and PM info VERY SHORT.
-Do not explain anything outside the JSON.
+Example format only:
+123456|0386-10|AVAILABLE|16 FT|84211|||high
 `.trim();
 
   const input = [
@@ -77,7 +75,7 @@ Do not explain anything outside the JSON.
       content: [
         {
           type: "input_text",
-          text: `Yard Check page ${pageNumber}. Extract every clearly identifiable printed vehicle row.`
+          text: `Page ${pageNumber}. Extract all printed vehicle rows now.`
         },
         {
           type: "input_image",
@@ -87,36 +85,42 @@ Do not explain anything outside the JSON.
     }
   ];
 
+  const controller = new AbortController();
+
+  // Leave a small cushion before the hosting function's hard execution ceiling.
+  const timeout = setTimeout(() => controller.abort(), 25500);
+
   try {
-    const controller = new AbortController();
-    // Stop our upstream request slightly before Netlify's observed 30-second ceiling
-    // so the app can receive a useful error rather than an abrupt function timeout.
-    const timeout = setTimeout(() => controller.abort(), 27000);
+    const response = await fetch(OPENAI_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        instructions,
+        input,
+        reasoning: { effort: "none" },
+        store: false,
+        max_output_tokens: 1800
+      })
+    });
 
-    let response;
+    const contentType = response.headers.get("content-type") || "";
+    let data = null;
 
-    try {
-      response = await fetch(OPENAI_URL, {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model,
-          instructions,
-          input,
-          reasoning: { effort: "none" },
-          store: false,
-          max_output_tokens: 2200
-        })
-      });
-    } finally {
-      clearTimeout(timeout);
+    if (contentType.includes("application/json")) {
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+    } else {
+      const text = await response.text();
+      data = { rawText: text };
     }
-
-    const data = await response.json();
 
     if (!response.ok) {
       return jsonResponse(response.status, {
@@ -130,41 +134,16 @@ Do not explain anything outside the JSON.
 
     if (!raw) {
       return jsonResponse(502, {
-        error: `OpenAI returned no readable data for page ${pageNumber}.`
+        error: `No readable vehicle rows were returned for page ${pageNumber}.`
       });
     }
 
-    let parsed;
+    const units = parseCompactRows(raw);
 
-    try {
-      parsed = JSON.parse(
-        raw
-          .replace(/^```json\s*/i, "")
-          .replace(/```$/i, "")
-          .trim()
-      );
-    } catch (error) {
-      return jsonResponse(502, {
-        error: `Page ${pageNumber} returned unreadable structured data. Try a clearer photo.`
-      });
-    }
-
-    const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
-
-    const units = rows
-      .filter((row) => Array.isArray(row) && row.length >= 1)
-      .map((row) => ({
-        unitNumber: clean(row[0]),
-        owningLocation: clean(row[1]),
-        vehicleStatus: clean(row[2]),
-        vehicleType: clean(row[3]),
-        mileage: clean(row[4]),
-        pmInfo: clean(row[5]),
-        comments: clean(row[6]),
-        confidence: normalizeConfidence(row[7])
-      }))
-      .filter((unit) => unit.unitNumber);
-
+    /*
+      An empty page is allowed. Returning an empty units array is better than
+      treating it as a function failure.
+    */
     return jsonResponse(200, {
       pageNumber,
       units,
@@ -174,24 +153,103 @@ Do not explain anything outside the JSON.
     if (error?.name === "AbortError") {
       return jsonResponse(504, {
         error:
-          "This page took too long to analyze. Try a clearer/cropped photo of the report page."
+          "This Yard Check page reached the analyzer time limit. Try the same PDF again once; if it still times out, use the Excel/CSV export or a cropped image of that page."
       });
     }
+
+    console.error("Yard Check analyzer error:", error);
 
     return jsonResponse(500, {
       error: "Could not reach OpenAI from the Yard Check function."
     });
+  } finally {
+    clearTimeout(timeout);
   }
 };
 
+function parseCompactRows(raw) {
+  return String(raw || "")
+    .replace(/^```(?:text|txt)?\s*/i, "")
+    .replace(/```$/i, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(parseCompactLine)
+    .filter(Boolean);
+}
+
+function parseCompactLine(line) {
+  // Ignore accidental headings or explanatory prose.
+  if (!line.includes("|")) return null;
+
+  const parts = line.split("|");
+
+  /*
+    We instructed exactly eight fields. If the model accidentally returned
+    extra separators, preserve the first six fields, combine the middle text
+    into comments, and keep the final field as confidence.
+  */
+  let fields;
+
+  if (parts.length === 8) {
+    fields = parts;
+  } else if (parts.length > 8) {
+    fields = [
+      parts[0],
+      parts[1],
+      parts[2],
+      parts[3],
+      parts[4],
+      parts[5],
+      parts.slice(6, -1).join(" "),
+      parts[parts.length - 1]
+    ];
+  } else {
+    fields = [...parts];
+    while (fields.length < 8) fields.push("");
+  }
+
+  const unit = {
+    unitNumber: clean(fields[0]),
+    owningLocation: clean(fields[1]),
+    vehicleStatus: clean(fields[2]),
+    vehicleType: clean(fields[3]),
+    mileage: clean(fields[4]),
+    pmInfo: clean(fields[5]),
+    comments: clean(fields[6]),
+    confidence: normalizeConfidence(fields[7])
+  };
+
+  if (!looksLikeUnitNumber(unit.unitNumber)) {
+    return null;
+  }
+
+  return unit;
+}
+
+function looksLikeUnitNumber(value) {
+  const text = clean(value);
+
+  if (!text) return false;
+
+  // Yard unit numbers may contain letters, numbers, or hyphens.
+  // Reject obvious prose while keeping uncertain OCR transcriptions.
+  if (text.length > 24) return false;
+  if (/\s{2,}/.test(text)) return false;
+
+  return /[0-9]/.test(text);
+}
+
 function clean(value) {
-  return String(value ?? "").trim();
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeConfidence(value) {
-  const confidence = String(value || "").toLowerCase();
+  const confidence = clean(value).toLowerCase();
 
-  if (["high", "medium", "low"].includes(confidence)) {
+  if (confidence === "high" || confidence === "medium" || confidence === "low") {
     return confidence;
   }
 
@@ -199,21 +257,33 @@ function normalizeConfidence(value) {
 }
 
 function extractOutputText(data) {
+  if (!data || typeof data !== "object") {
+    return "";
+  }
+
   if (typeof data.output_text === "string" && data.output_text.trim()) {
     return data.output_text.trim();
   }
 
   const pieces = [];
 
-  for (const item of data.output || []) {
-    for (const content of item.content || []) {
-      if (content.type === "output_text" && typeof content.text === "string") {
+  for (const item of Array.isArray(data.output) ? data.output : []) {
+    for (const content of Array.isArray(item?.content) ? item.content : []) {
+      if (content?.type === "output_text" && typeof content.text === "string") {
         pieces.push(content.text);
       }
     }
   }
 
-  return pieces.join("\n").trim();
+  if (pieces.length) {
+    return pieces.join("\n").trim();
+  }
+
+  if (typeof data.rawText === "string") {
+    return data.rawText.trim();
+  }
+
+  return "";
 }
 
 function jsonResponse(statusCode, payload) {
