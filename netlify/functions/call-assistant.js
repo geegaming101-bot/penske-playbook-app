@@ -22,6 +22,9 @@ exports.handler = async function handler(event) {
   const currentCall = body.currentCall || {};
   const procedures = Array.isArray(body.procedures) ? body.procedures : [];
   const similarCalls = Array.isArray(body.similarCalls) ? body.similarCalls : [];
+  const nearbyBranches = body.nearbyBranches && typeof body.nearbyBranches === "object"
+    ? body.nearbyBranches
+    : null;
 
   if (body.mode === "notes_assistant") {
     return handleNotesAssistant(body);
@@ -32,7 +35,7 @@ exports.handler = async function handler(event) {
   }
 
   if (body.mode === "live_followup") {
-    return handleLiveFollowup(body, currentCall, procedures, similarCalls);
+    return handleLiveFollowup(body, currentCall, procedures, similarCalls, nearbyBranches);
   }
 
   const callText = [
@@ -71,6 +74,13 @@ STRICT ACCURACY RULES:
 - If the supplied material does not support a step, say so briefly.
 - When uncertain, recommend the smallest necessary escalation to a manager or experienced coworker.
 - Do not output private chain-of-thought. Give only conclusions and actionable guidance.
+
+DISTRICT BRANCH CONTEXT:
+- If NEARBY DISTRICT BRANCHES is supplied, it came from the user's saved branch reference.
+- Use it only when branch proximity is actually relevant to the call.
+- Distances are approximate offline estimates, not live routing.
+- Do not force branch suggestions into an unrelated call.
+- Do not invent a branch or mileage that is not supplied.
 
 RELEVANCE RULES:
 - Do not match a Playbook procedure just because it shares a word with the call.
@@ -125,6 +135,9 @@ ${JSON.stringify(procedures, null, 2)}
 
 SIMILAR RESOLVED CALLS
 ${JSON.stringify(similarCalls, null, 2)}
+
+NEARBY DISTRICT BRANCHES
+${JSON.stringify(nearbyBranches, null, 2)}
 `.trim();
 
   try {
@@ -286,7 +299,7 @@ ${JSON.stringify(conversation, null, 2)}
   }
 }
 
-async function handleLiveFollowup(body, currentCall, procedures, similarCalls) {
+async function handleLiveFollowup(body, currentCall, procedures, similarCalls, nearbyBranches) {
   const liveMessages = Array.isArray(body.liveMessages) ? body.liveMessages : [];
   const initialAdvice = String(body.initialAdvice || "").trim();
 
@@ -314,6 +327,9 @@ STRICT ACCURACY:
 - Do not tell the user to perform an undocumented internal action just because it seems generally reasonable.
 - For an unsafe vehicle, do not encourage continued driving.
 - Do not expose chain-of-thought.
+- If NEARBY DISTRICT BRANCHES is supplied and branch proximity matters to the current problem, use that saved context.
+- Treat branch mileage as an approximate offline estimate, not live routing.
+- Do not mention nearby branches when they are irrelevant to the call.
 
 LIVE-CONVERSATION STYLE:
 - Do NOT repeat the full dashboard or all prior advice.
@@ -348,6 +364,9 @@ ${JSON.stringify(procedures, null, 2)}
 
 SIMILAR RESOLVED CALLS
 ${JSON.stringify(similarCalls, null, 2)}
+
+NEARBY DISTRICT BRANCHES
+${JSON.stringify(nearbyBranches, null, 2)}
 `.trim();
 
   try {
