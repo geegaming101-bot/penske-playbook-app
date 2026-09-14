@@ -250,64 +250,373 @@ function renderStandardProcedure(procedure) {
   });
 }
 
+
+const DISTRICT_BRANCH_DIRECTORY = {
+  "0386-10": {
+    name: "KC, MO",
+    address: "1111 Century Ave, Kansas City, MO 64120",
+    lat: 39.127518,
+    lon: -94.489230,
+    aliases: ["kansas city", "kansas city mo", "century ave", "century avenue"]
+  },
+  "0387-10": {
+    name: "Lenexa, KS",
+    address: "17225 W 116th St, Lenexa, KS 66219",
+    lat: 38.917952,
+    lon: -94.785872,
+    aliases: ["lenexa", "lenexa ks", "116th st", "116th street"]
+  },
+  "0417-10": {
+    name: "Salina, KS",
+    address: "460 S Ohio St, Salina, KS 67401",
+    lat: 38.8349,
+    lon: -97.5978,
+    aliases: ["salina", "salina ks", "ohio st", "ohio street"]
+  },
+  "0386-20": {
+    name: "Gladstone, MO",
+    address: "6800 N Oak Trafficway, Gladstone, MO 64118",
+    lat: 39.217533,
+    lon: -94.576639,
+    aliases: ["gladstone", "gladstone mo", "north oak", "n oak"]
+  },
+  "0386-21": {
+    name: "Leavenworth, KS",
+    address: "1314 Eisenhower Rd, Leavenworth, KS 66048",
+    lat: 39.268006,
+    lon: -94.936614,
+    aliases: ["leavenworth", "leavenworth ks", "eisenhower"]
+  },
+  "0386-23": {
+    name: "Grandview, MO",
+    address: "12012 Blue Ridge Ext, Grandview, MO 64030",
+    lat: 38.9067,
+    lon: -94.5231,
+    aliases: ["grandview", "grandview mo", "blue ridge"]
+  },
+  "0386-24": {
+    name: "Blue Springs, MO",
+    address: "3550 US-40 W, Blue Springs, MO 64015",
+    lat: 39.009780,
+    lon: -94.304616,
+    aliases: ["blue springs", "blue springs mo", "us 40", "us-40"]
+  },
+  "0386-25": {
+    name: "Manhattan, KS",
+    address: "338 Seth Child Rd, Manhattan, KS 66502",
+    lat: 39.1798,
+    lon: -96.5968,
+    aliases: ["manhattan", "manhattan ks", "seth child"]
+  },
+  "0386-30": {
+    name: "Platte City, MO",
+    address: "801 Main St, Platte City, MO 64079",
+    lat: 39.368285,
+    lon: -94.774249,
+    aliases: ["platte city", "platte city mo"]
+  },
+  "0386-32": {
+    name: "Belton, MO",
+    address: "1306 E North Ave, Belton, MO 64012",
+    lat: 38.814077,
+    lon: -94.521868,
+    aliases: ["belton", "belton mo", "north ave", "north avenue"]
+  },
+  "0386-35": {
+    name: "HD, KC, MO",
+    address: "111 E Linwood Blvd, Kansas City, MO 64111",
+    lat: 39.068405,
+    lon: -94.583944,
+    aliases: ["linwood", "linwood blvd", "home depot linwood", "hd kc"]
+  },
+  "0386-40": {
+    name: "Junction City, KS",
+    address: "129 E 6th St, Junction City, KS 66441",
+    lat: 39.0286,
+    lon: -96.8314,
+    aliases: ["junction city", "junction city ks", "junction"]
+  },
+  "0386-45": {
+    name: "Harrisonville, MO",
+    address: "802 S Commercial St, Harrisonville, MO 64701",
+    lat: 38.6468,
+    lon: -94.3489,
+    aliases: ["harrisonville", "harrisonville mo"]
+  },
+  "0386-46": {
+    name: "Colby, KS",
+    address: "855 Davis Ave, Colby, KS 67701",
+    lat: 39.3957,
+    lon: -101.0524,
+    aliases: ["colby", "colby ks", "davis ave", "davis avenue"]
+  },
+  "0386-64": {
+    name: "Joseph, MO",
+    address: "3636 Messanie St, Saint Joseph, MO 64507",
+    lat: 39.762460,
+    lon: -94.805191,
+    aliases: ["saint joseph", "st joseph", "st. joseph", "joseph mo", "messanie"]
+  },
+  "0386-90": {
+    name: "Topeka, KS",
+    address: "1620 S Kansas Ave, Topeka, KS 66612",
+    lat: 39.037403,
+    lon: -95.678440,
+    aliases: ["topeka", "topeka ks", "kansas ave", "kansas avenue"]
+  },
+  "0387-24": {
+    name: "Shawnee, KS",
+    address: "15501 W 67th St, Shawnee, KS 66217",
+    lat: 39.0078,
+    lon: -94.7665,
+    aliases: ["shawnee", "shawnee ks", "67th st", "67th street"]
+  }
+};
+
+function districtToRadians(value) {
+  return value * Math.PI / 180;
+}
+
+function districtStraightLineMiles(a, b) {
+  if (
+    !Number.isFinite(a?.lat) ||
+    !Number.isFinite(a?.lon) ||
+    !Number.isFinite(b?.lat) ||
+    !Number.isFinite(b?.lon)
+  ) return null;
+
+  const earthRadiusMiles = 3958.8;
+  const dLat = districtToRadians(b.lat - a.lat);
+  const dLon = districtToRadians(b.lon - a.lon);
+  const lat1 = districtToRadians(a.lat);
+  const lat2 = districtToRadians(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+
+  return earthRadiusMiles * 2 * Math.asin(Math.sqrt(h));
+}
+
+function approximateDistrictRoadMiles(a, b) {
+  const direct = districtStraightLineMiles(a, b);
+  if (direct === null) return null;
+
+  const factor = direct < 35 ? 1.22 : direct < 120 ? 1.17 : 1.12;
+  return Math.max(1, Math.round(direct * factor));
+}
+
+function normalizeBranchMatchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/[^a-z0-9#\-\s.]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getDistrictBranchesArray() {
+  return Object.entries(DISTRICT_BRANCH_DIRECTORY).map(([code, branch]) => ({
+    code,
+    ...branch
+  }));
+}
+
+function getNearbyDistrictBranches(code, limit = null) {
+  const source = DISTRICT_BRANCH_DIRECTORY[code];
+  if (!source) return [];
+
+  const nearby = getDistrictBranchesArray()
+    .filter((branch) => branch.code !== code)
+    .map((branch) => ({
+      ...branch,
+      miles: approximateDistrictRoadMiles(source, branch)
+    }))
+    .filter((branch) => branch.miles !== null)
+    .sort((a, b) => a.miles - b.miles);
+
+  return Number.isFinite(limit) ? nearby.slice(0, limit) : nearby;
+}
+
+function findDistrictBranchMention(text) {
+  const normalized = normalizeBranchMatchText(text);
+  if (!normalized) return null;
+
+  const branches = getDistrictBranchesArray();
+
+  // Branch codes are the strongest possible match.
+  const codeMatch = branches.find((branch) =>
+    normalized.includes(branch.code.toLowerCase())
+  );
+  if (codeMatch) return { branch: codeMatch, matchedBy: "branch code" };
+
+  let bestMatch = null;
+  let bestScore = 0;
+
+  branches.forEach((branch) => {
+    const candidates = [
+      branch.name,
+      ...(Array.isArray(branch.aliases) ? branch.aliases : [])
+    ]
+      .map(normalizeBranchMatchText)
+      .filter(Boolean);
+
+    candidates.forEach((candidate) => {
+      // Avoid very short generic fragments.
+      if (candidate.length < 5) return;
+
+      const exactPhrase = normalized.includes(candidate);
+      if (!exactPhrase) return;
+
+      let score = candidate.length;
+      if (candidate.includes(",")) score += 4;
+      if (candidate.includes(" city")) score += 3;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = {
+          branch,
+          matchedBy: candidate
+        };
+      }
+    });
+  });
+
+  return bestMatch;
+}
+
+function callLocationText(call) {
+  const notes = Array.isArray(call?.notes)
+    ? call.notes.map((note) => note.text || "").join(" ")
+    : "";
+
+  const liveConversation = Array.isArray(call?.aiConversation)
+    ? call.aiConversation.map((message) => message.text || "").join(" ")
+    : "";
+
+  return [
+    call?.customer,
+    call?.company,
+    call?.reference,
+    call?.scratch,
+    notes,
+    liveConversation
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getCallNearbyBranchContext(call) {
+  if (!call) return null;
+
+  const match = findDistrictBranchMention(callLocationText(call));
+  if (!match?.branch) return null;
+
+  return {
+    detectedBranch: {
+      code: match.branch.code,
+      name: match.branch.name,
+      address: match.branch.address,
+      miles: 0
+    },
+    alternatives: getNearbyDistrictBranches(match.branch.code, 3).map((branch) => ({
+      code: branch.code,
+      name: branch.name,
+      address: branch.address,
+      miles: branch.miles
+    })),
+    mileageType: "approximate offline branch-to-branch estimate"
+  };
+}
+
+function renderCallNearbyBranches(call = getActiveCall()) {
+  const panel = document.getElementById("callNearbyBranches");
+  const title = document.getElementById("callNearbyTitle");
+  const detected = document.getElementById("callNearbyDetected");
+  const list = document.getElementById("callNearbyBranchList");
+
+  if (!panel || !title || !detected || !list) return;
+
+  const context = getCallNearbyBranchContext(call);
+
+  if (!context) {
+    panel.classList.add("hidden");
+    detected.textContent = "";
+    list.replaceChildren();
+    return;
+  }
+
+  const matched = context.detectedBranch;
+  title.textContent = "Nearby District Branches";
+  detected.innerHTML = `
+    Detected: <strong>${escapeHtml(matched.name)}</strong>
+    <span>${escapeHtml(matched.code)}</span>
+  `;
+
+  const rows = [
+    {
+      ...matched,
+      label: "MATCH",
+      milesText: "0 mi"
+    },
+    ...context.alternatives.map((branch, index) => ({
+      ...branch,
+      label: index === 0 ? "NEXT CLOSEST" : "",
+      milesText: `${branch.miles} mi`
+    }))
+  ];
+
+  list.innerHTML = rows.map((branch) => `
+    <button class="call-nearby-row" type="button" data-call-open-branch="${escapeHtml(branch.code)}">
+      <span class="call-nearby-main">
+        <strong>${escapeHtml(branch.name)}</strong>
+        <small>${escapeHtml(branch.code)}${branch.label ? ` · ${escapeHtml(branch.label)}` : ""}</small>
+      </span>
+      <span class="call-nearby-miles">${escapeHtml(branch.milesText)}</span>
+    </button>
+  `).join("");
+
+  panel.classList.remove("hidden");
+
+  list.querySelectorAll("[data-call-open-branch]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openProcedure(18);
+      setTimeout(() => {
+        const card = document.querySelector(`[data-open-branch="${CSS.escape(button.dataset.callOpenBranch || "")}"]`);
+        card?.click();
+      }, 0);
+    });
+  });
+}
+
+function renderCallNearbyBranchesFromFields() {
+  const active = getActiveCall();
+  const fields = typeof readCurrentCallFields === "function"
+    ? readCurrentCallFields()
+    : {};
+
+  const preview = {
+    ...(active || {}),
+    ...fields
+  };
+
+  renderCallNearbyBranches(preview);
+}
+
 function renderDistrictBranchesTool(procedure) {
   const branchLines = procedure.sections
     .flatMap((section) => section.items || [])
     .filter((item) => /^\d{4}-\d{2}\s+—\s+/.test(item));
 
-  // Public street addresses are used only to make this personal quick-reference
-  // easier to scan. Distances are approximate branch-to-branch road-mile estimates,
-  // not live routing. Internal branch codes stay exactly as documented in the Playbook.
-  const branchDirectory = {
-    "0386-10": { address: "1111 Century Ave, Kansas City, MO 64120", lat: 39.127518, lon: -94.489230 },
-    "0387-10": { address: "17225 W 116th St, Lenexa, KS 66219", lat: 38.917952, lon: -94.785872 },
-    "0417-10": { address: "460 S Ohio St, Salina, KS 67401", lat: 38.8349, lon: -97.5978, note: "Your Playbook code is kept as 0417-10; this address is the public Penske listing used for the Salina distance reference." },
-    "0386-20": { address: "6800 N Oak Trafficway, Gladstone, MO 64118", lat: 39.217533, lon: -94.576639 },
-    "0386-21": { address: "1314 Eisenhower Rd, Leavenworth, KS 66048", lat: 39.268006, lon: -94.936614 },
-    "0386-23": { address: "12012 Blue Ridge Ext, Grandview, MO 64030", lat: 38.9067, lon: -94.5231 },
-    "0386-24": { address: "3550 US-40 W, Blue Springs, MO 64015", lat: 39.009780, lon: -94.304616 },
-    "0386-25": { address: "338 Seth Child Rd, Manhattan, KS 66502", lat: 39.1798, lon: -96.5968 },
-    "0386-30": { address: "801 Main St, Platte City, MO 64079", lat: 39.368285, lon: -94.774249 },
-    "0386-32": { address: "1306 E North Ave, Belton, MO 64012", lat: 38.814077, lon: -94.521868 },
-    "0386-35": { address: "111 E Linwood Blvd, Kansas City, MO 64111", lat: 39.068405, lon: -94.583944 },
-    "0386-40": { address: "129 E 6th St, Junction City, KS 66441", lat: 39.0286, lon: -96.8314 },
-    "0386-45": { address: "802 S Commercial St, Harrisonville, MO 64701", lat: 38.6468, lon: -94.3489 },
-    "0386-46": { address: "855 Davis Ave, Colby, KS 67701", lat: 39.3957, lon: -101.0524 },
-    "0386-64": { address: "3636 Messanie St, Saint Joseph, MO 64507", lat: 39.762460, lon: -94.805191 },
-    "0386-90": { address: "1620 S Kansas Ave, Topeka, KS 66612", lat: 39.037403, lon: -95.678440 },
-    "0387-24": { address: "15501 W 67th St, Shawnee, KS 66217", lat: 39.0078, lon: -94.7665 }
-  };
-
   const branches = branchLines.map((line) => {
     const separatorIndex = line.indexOf("—");
     const code = line.slice(0, separatorIndex).trim();
-    const name = line.slice(separatorIndex + 1).trim();
-    return { code, name, ...(branchDirectory[code] || {}) };
+    const documentedName = line.slice(separatorIndex + 1).trim();
+    return {
+      code,
+      name: documentedName || DISTRICT_BRANCH_DIRECTORY[code]?.name || code,
+      ...(DISTRICT_BRANCH_DIRECTORY[code] || {})
+    };
   });
-
-  function toRadians(value) {
-    return value * Math.PI / 180;
-  }
-
-  function straightLineMiles(a, b) {
-    if (!Number.isFinite(a?.lat) || !Number.isFinite(a?.lon) || !Number.isFinite(b?.lat) || !Number.isFinite(b?.lon)) return null;
-    const earthRadiusMiles = 3958.8;
-    const dLat = toRadians(b.lat - a.lat);
-    const dLon = toRadians(b.lon - a.lon);
-    const lat1 = toRadians(a.lat);
-    const lat2 = toRadians(b.lat);
-    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-    return earthRadiusMiles * 2 * Math.asin(Math.sqrt(h));
-  }
-
-  function approximateRoadMiles(a, b) {
-    const direct = straightLineMiles(a, b);
-    if (direct === null) return null;
-    // A modest road-routing allowance makes the number more useful than straight-line miles
-    // while keeping this feature completely offline and instant.
-    const factor = direct < 35 ? 1.22 : direct < 120 ? 1.17 : 1.12;
-    return Math.max(1, Math.round(direct * factor));
-  }
 
   procedureContent.innerHTML = `
     <section class="district-branch-tool">
@@ -326,11 +635,7 @@ function renderDistrictBranchesTool(procedure) {
     const branch = branches.find((item) => item.code === code);
     if (!branch) return;
 
-    const nearby = branches
-      .filter((item) => item.code !== branch.code)
-      .map((item) => ({ ...item, miles: approximateRoadMiles(branch, item) }))
-      .filter((item) => item.miles !== null)
-      .sort((a, b) => a.miles - b.miles);
+    const nearby = getNearbyDistrictBranches(branch.code);
 
     procedureContent.innerHTML = `
       <section class="district-branch-detail">
@@ -341,7 +646,6 @@ function renderDistrictBranchesTool(procedure) {
           <h3>${escapeHtml(branch.name)}</h3>
           <div class="branch-detail-code">${escapeHtml(branch.code)}</div>
           ${branch.address ? `<p class="branch-detail-address">${escapeHtml(branch.address)}</p>` : ""}
-          ${branch.note ? `<p class="branch-detail-note">${escapeHtml(branch.note)}</p>` : ""}
         </div>
 
         <div class="branch-distance-heading">
@@ -409,6 +713,7 @@ function renderDistrictBranchesTool(procedure) {
         if (event.target.closest("[data-copy-branch]")) return;
         openBranch(card.dataset.openBranch || "");
       });
+
       card.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -421,10 +726,13 @@ function renderDistrictBranchesTool(procedure) {
       button.addEventListener("click", async (event) => {
         event.stopPropagation();
         const code = button.dataset.copyBranch || "";
+
         try {
           await navigator.clipboard.writeText(code);
           button.textContent = "Copied";
-          setTimeout(() => { button.textContent = "Copy Code"; }, 1200);
+          setTimeout(() => {
+            button.textContent = "Copy Code";
+          }, 1200);
         } catch {
           window.prompt("Copy branch code:", code);
         }
@@ -435,7 +743,6 @@ function renderDistrictBranchesTool(procedure) {
   input?.addEventListener("input", (event) => draw(event.target.value));
   draw();
 }
-
 
 // ==============================
 // YARD CHECK V1
@@ -4847,6 +5154,7 @@ function renderActiveCall() {
     document.getElementById("aiCallCards")?.replaceChildren();
     if (aiText) aiText.textContent = "";
     renderLiveAiConversation(null);
+    renderCallNearbyBranches(null);
     return;
   }
 
@@ -4907,6 +5215,7 @@ function renderActiveCall() {
   }
 
   renderLiveAiConversation(call);
+  renderCallNearbyBranches(call);
 
   if (call.status === "resolved") {
     resolveButton.textContent = "Reopen Call";
@@ -6229,7 +6538,8 @@ async function sendLiveAiUpdate() {
         text: message.text
       })),
       procedures: prepareProceduresForAi(),
-      similarCalls: findSimilarResolvedCalls(latestCall, 5)
+      similarCalls: findSimilarResolvedCalls(latestCall, 5),
+      nearbyBranches: getCallNearbyBranchContext(latestCall)
     };
 
     const response = await fetch("/.netlify/functions/call-assistant", {
@@ -6300,7 +6610,8 @@ async function askAiForCallHelp() {
         notes: Array.isArray(call.notes) ? call.notes.map((note) => note.text) : []
       },
       procedures: prepareProceduresForAi(),
-      similarCalls: findSimilarResolvedCalls(call, 5)
+      similarCalls: findSimilarResolvedCalls(call, 5),
+      nearbyBranches: getCallNearbyBranchContext(call)
     };
 
     const response = await fetch("/.netlify/functions/call-assistant", {
@@ -6402,6 +6713,15 @@ function initializeCalls() {
   document.getElementById("newCallBtn")?.addEventListener("click", newCall);
   document.getElementById("resolveCallBtn")?.addEventListener("click", beginResolveCall);
   document.getElementById("editResolutionBtn")?.addEventListener("click", editResolvedCallResolution);
+  document.getElementById("callScratchpad")?.addEventListener("input", renderCallNearbyBranchesFromFields);
+  document.getElementById("callCompany")?.addEventListener("input", renderCallNearbyBranchesFromFields);
+  document.getElementById("callCustomer")?.addEventListener("input", renderCallNearbyBranchesFromFields);
+  document.getElementById("callReference")?.addEventListener("input", renderCallNearbyBranchesFromFields);
+
+  document.getElementById("openDistrictBranchesFromCallBtn")?.addEventListener("click", () => {
+    openProcedure(18);
+  });
+
   document.getElementById("askCallAiBtn")?.addEventListener("click", askAiForCallHelp);
   document.getElementById("sendLiveAiReplyBtn")?.addEventListener("click", sendLiveAiUpdate);
   document.getElementById("liveAiReply")?.addEventListener("keydown", (event) => {
