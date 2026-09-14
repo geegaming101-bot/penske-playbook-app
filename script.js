@@ -255,13 +255,59 @@ function renderDistrictBranchesTool(procedure) {
     .flatMap((section) => section.items || [])
     .filter((item) => /^\d{4}-\d{2}\s+—\s+/.test(item));
 
+  // Public street addresses are used only to make this personal quick-reference
+  // easier to scan. Distances are approximate branch-to-branch road-mile estimates,
+  // not live routing. Internal branch codes stay exactly as documented in the Playbook.
+  const branchDirectory = {
+    "0386-10": { address: "1111 Century Ave, Kansas City, MO 64120", lat: 39.127518, lon: -94.489230 },
+    "0387-10": { address: "17225 W 116th St, Lenexa, KS 66219", lat: 38.917952, lon: -94.785872 },
+    "0417-10": { address: "460 S Ohio St, Salina, KS 67401", lat: 38.8349, lon: -97.5978, note: "Your Playbook code is kept as 0417-10; this address is the public Penske listing used for the Salina distance reference." },
+    "0386-20": { address: "6800 N Oak Trafficway, Gladstone, MO 64118", lat: 39.217533, lon: -94.576639 },
+    "0386-21": { address: "1314 Eisenhower Rd, Leavenworth, KS 66048", lat: 39.268006, lon: -94.936614 },
+    "0386-23": { address: "12012 Blue Ridge Ext, Grandview, MO 64030", lat: 38.9067, lon: -94.5231 },
+    "0386-24": { address: "3550 US-40 W, Blue Springs, MO 64015", lat: 39.009780, lon: -94.304616 },
+    "0386-25": { address: "338 Seth Child Rd, Manhattan, KS 66502", lat: 39.1798, lon: -96.5968 },
+    "0386-30": { address: "801 Main St, Platte City, MO 64079", lat: 39.368285, lon: -94.774249 },
+    "0386-32": { address: "1306 E North Ave, Belton, MO 64012", lat: 38.814077, lon: -94.521868 },
+    "0386-35": { address: "111 E Linwood Blvd, Kansas City, MO 64111", lat: 39.068405, lon: -94.583944 },
+    "0386-40": { address: "129 E 6th St, Junction City, KS 66441", lat: 39.0286, lon: -96.8314 },
+    "0386-45": { address: "802 S Commercial St, Harrisonville, MO 64701", lat: 38.6468, lon: -94.3489 },
+    "0386-46": { address: "855 Davis Ave, Colby, KS 67701", lat: 39.3957, lon: -101.0524 },
+    "0386-64": { address: "3636 Messanie St, Saint Joseph, MO 64507", lat: 39.762460, lon: -94.805191 },
+    "0386-90": { address: "1620 S Kansas Ave, Topeka, KS 66612", lat: 39.037403, lon: -95.678440 },
+    "0387-24": { address: "15501 W 67th St, Shawnee, KS 66217", lat: 39.0078, lon: -94.7665 }
+  };
+
   const branches = branchLines.map((line) => {
     const separatorIndex = line.indexOf("—");
-    return {
-      code: line.slice(0, separatorIndex).trim(),
-      name: line.slice(separatorIndex + 1).trim()
-    };
+    const code = line.slice(0, separatorIndex).trim();
+    const name = line.slice(separatorIndex + 1).trim();
+    return { code, name, ...(branchDirectory[code] || {}) };
   });
+
+  function toRadians(value) {
+    return value * Math.PI / 180;
+  }
+
+  function straightLineMiles(a, b) {
+    if (!Number.isFinite(a?.lat) || !Number.isFinite(a?.lon) || !Number.isFinite(b?.lat) || !Number.isFinite(b?.lon)) return null;
+    const earthRadiusMiles = 3958.8;
+    const dLat = toRadians(b.lat - a.lat);
+    const dLon = toRadians(b.lon - a.lon);
+    const lat1 = toRadians(a.lat);
+    const lat2 = toRadians(b.lat);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return earthRadiusMiles * 2 * Math.asin(Math.sqrt(h));
+  }
+
+  function approximateRoadMiles(a, b) {
+    const direct = straightLineMiles(a, b);
+    if (direct === null) return null;
+    // A modest road-routing allowance makes the number more useful than straight-line miles
+    // while keeping this feature completely offline and instant.
+    const factor = direct < 35 ? 1.22 : direct < 120 ? 1.17 : 1.12;
+    return Math.max(1, Math.round(direct * factor));
+  }
 
   procedureContent.innerHTML = `
     <section class="district-branch-tool">
@@ -276,12 +322,67 @@ function renderDistrictBranchesTool(procedure) {
   const input = document.getElementById("districtBranchSearch");
   const results = document.getElementById("districtBranchResults");
 
+  function openBranch(code) {
+    const branch = branches.find((item) => item.code === code);
+    if (!branch) return;
+
+    const nearby = branches
+      .filter((item) => item.code !== branch.code)
+      .map((item) => ({ ...item, miles: approximateRoadMiles(branch, item) }))
+      .filter((item) => item.miles !== null)
+      .sort((a, b) => a.miles - b.miles);
+
+    procedureContent.innerHTML = `
+      <section class="district-branch-detail">
+        <button id="backToDistrictBranches" class="secondary-btn small-btn branch-back-btn" type="button">← Back to District Branches</button>
+
+        <div class="branch-detail-hero">
+          <span class="mini-label">DISTRICT BRANCH</span>
+          <h3>${escapeHtml(branch.name)}</h3>
+          <div class="branch-detail-code">${escapeHtml(branch.code)}</div>
+          ${branch.address ? `<p class="branch-detail-address">${escapeHtml(branch.address)}</p>` : ""}
+          ${branch.note ? `<p class="branch-detail-note">${escapeHtml(branch.note)}</p>` : ""}
+        </div>
+
+        <div class="branch-distance-heading">
+          <div>
+            <span class="mini-label">CLOSEST TO FARTHEST</span>
+            <h4>Other District Branches</h4>
+          </div>
+          <span class="branch-distance-badge">Approx. miles</span>
+        </div>
+
+        <div class="branch-distance-list">
+          ${nearby.map((item, index) => `
+            <button class="branch-distance-row" type="button" data-open-nearby-branch="${escapeHtml(item.code)}">
+              <span class="branch-distance-rank">${index + 1}</span>
+              <span class="branch-distance-main">
+                <strong>${escapeHtml(item.name)}</strong>
+                <small>${escapeHtml(item.code)}</small>
+              </span>
+              <span class="branch-distance-miles">${item.miles} mi</span>
+            </button>
+          `).join("")}
+        </div>
+
+        <p class="branch-distance-disclaimer">Mileage is an offline quick-reference estimate based on the saved branch addresses, not live GPS routing or traffic.</p>
+      </section>
+    `;
+
+    document.getElementById("backToDistrictBranches")?.addEventListener("click", () => renderDistrictBranchesTool(procedure));
+    procedureContent.querySelectorAll("[data-open-nearby-branch]").forEach((button) => {
+      button.addEventListener("click", () => openBranch(button.dataset.openNearbyBranch || ""));
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function draw(query = "") {
     const term = query.trim().toLowerCase();
     const filtered = branches.filter((branch) =>
       !term ||
       branch.code.toLowerCase().includes(term) ||
-      branch.name.toLowerCase().includes(term)
+      branch.name.toLowerCase().includes(term) ||
+      String(branch.address || "").toLowerCase().includes(term)
     );
 
     if (!filtered.length) {
@@ -290,17 +391,35 @@ function renderDistrictBranchesTool(procedure) {
     }
 
     results.innerHTML = filtered.map((branch) => `
-      <article class="district-branch-card">
+      <article class="district-branch-card branch-open-card" tabindex="0" role="button" data-open-branch="${escapeHtml(branch.code)}" aria-label="Open ${escapeHtml(branch.name)} distance list">
         <div class="district-branch-info">
           <strong>${escapeHtml(branch.name)}</strong>
           <span>${escapeHtml(branch.code)}</span>
+          ${branch.address ? `<small>${escapeHtml(branch.address)}</small>` : ""}
         </div>
-        <button class="secondary-btn small-btn branch-copy-btn" type="button" data-copy-branch="${escapeHtml(branch.code)}">Copy Code</button>
+        <div class="branch-card-actions">
+          <button class="secondary-btn small-btn branch-copy-btn" type="button" data-copy-branch="${escapeHtml(branch.code)}">Copy Code</button>
+          <span class="branch-open-arrow" aria-hidden="true">→</span>
+        </div>
       </article>
     `).join("");
 
+    results.querySelectorAll("[data-open-branch]").forEach((card) => {
+      card.addEventListener("click", (event) => {
+        if (event.target.closest("[data-copy-branch]")) return;
+        openBranch(card.dataset.openBranch || "");
+      });
+      card.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openBranch(card.dataset.openBranch || "");
+        }
+      });
+    });
+
     results.querySelectorAll("[data-copy-branch]").forEach((button) => {
-      button.addEventListener("click", async () => {
+      button.addEventListener("click", async (event) => {
+        event.stopPropagation();
         const code = button.dataset.copyBranch || "";
         try {
           await navigator.clipboard.writeText(code);
