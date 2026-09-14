@@ -23,6 +23,10 @@ exports.handler = async function handler(event) {
   const procedures = Array.isArray(body.procedures) ? body.procedures : [];
   const similarCalls = Array.isArray(body.similarCalls) ? body.similarCalls : [];
 
+  if (body.mode === "notes_assistant") {
+    return handleNotesAssistant(body);
+  }
+
   if (body.mode === "resolution_review") {
     return handleResolutionReview(body, currentCall, procedures);
   }
@@ -168,6 +172,119 @@ ${JSON.stringify(similarCalls, null, 2)}
   }
 };
 
+
+
+async function handleNotesAssistant(body) {
+  const rawNotes = String(body.rawNotes || "").trim();
+  const currentTitle = String(body.currentTitle || "").trim();
+  const currentCleanNote = String(body.currentCleanNote || "").trim();
+  const conversation = Array.isArray(body.conversation) ? body.conversation : [];
+
+  if (!rawNotes && !currentCleanNote) {
+    return jsonResponse(400, { error: "Add some notes before using AI Notes." });
+  }
+
+  const model = process.env.OPENAI_MODEL || "gpt-5.6-luna";
+
+  const instructions = `
+You are the AI Notes assistant inside a personal Penske training playbook.
+
+The user is documenting things they personally learned, observed, practiced, or were told at work.
+They may write in slang, fragments, shorthand, or messy conversational language.
+
+YOUR JOB:
+- Understand what the user means.
+- Discuss it with them naturally when they add corrections or details.
+- Turn their meaning into a clean, useful note they can review later.
+- Preserve the user's meaning and terminology.
+- Suggest a short practical title.
+- Keep the final note easy to scan and useful on the job.
+
+IMPORTANT ACCURACY RULES:
+- Do NOT invent Penske procedures, policy, system behavior, location information, or missing steps.
+- Do NOT "correct" an internal process using outside knowledge.
+- If the user says "I was taught..." or describes a local practice, preserve it as their training note rather than turning it into company-wide policy.
+- If something is unclear, keep it neutral or ask about it in the conversational reply instead of guessing.
+- Do not add facts that are absent from the user's notes or conversation.
+- Do not expose chain-of-thought.
+
+WRITING STYLE:
+- Keep the user's voice and meaning, but make grammar and organization professional and clear.
+- Prefer a useful structure such as Situation / What I Learned / Steps / Remember, but only use sections that actually fit the content.
+- Avoid over-formatting a very short note.
+- The clean note should usually be concise enough to review quickly later.
+- The conversational reply should be brief and sound like a helpful coworker helping organize the note.
+
+Return ONLY valid JSON:
+{
+  "reply": "brief conversational response to the user",
+  "suggestedTitle": "short practical title",
+  "cleanNote": "the latest polished version of the note",
+  "readyToSave": true
+}
+`.trim();
+
+  const input = `
+RAW NOTES
+${rawNotes || "None."}
+
+CURRENT TITLE
+${currentTitle || "None."}
+
+CURRENT CLEANED NOTE
+${currentCleanNote || "None."}
+
+DISCUSSION SO FAR
+${JSON.stringify(conversation, null, 2)}
+`.trim();
+
+  try {
+    const response = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        instructions,
+        input,
+        store: false,
+        max_output_tokens: 700
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return jsonResponse(response.status, {
+        error: data?.error?.message || `OpenAI request failed with status ${response.status}.`
+      });
+    }
+
+    const raw = extractOutputText(data);
+    if (!raw) {
+      return jsonResponse(502, { error: "OpenAI returned no readable note." });
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/^```json\s*/i, "").replace(/```$/i, "").trim());
+    } catch (error) {
+      return jsonResponse(502, { error: "The AI Notes response was unreadable. Try again." });
+    }
+
+    return jsonResponse(200, {
+      reply: String(parsed.reply || "").trim(),
+      suggestedTitle: String(parsed.suggestedTitle || "").trim(),
+      cleanNote: String(parsed.cleanNote || "").trim(),
+      readyToSave: Boolean(parsed.readyToSave),
+      model
+    });
+  } catch (error) {
+    return jsonResponse(500, { error: "Could not reach OpenAI from the Netlify function." });
+  }
+}
 
 async function handleLiveFollowup(body, currentCall, procedures, similarCalls) {
   const liveMessages = Array.isArray(body.liveMessages) ? body.liveMessages : [];
