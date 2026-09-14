@@ -711,7 +711,7 @@ const procedures = [
         heading: "District Branches",
         items: [
           "0386-10 — KC, MO",
-          "0387-40 — Lenexa, KS",
+          "0387-10 — Lenexa, KS",
           "0417-10 — Salina, KS",
           "0386-20 — Gladstone, MO",
           "0386-21 — Leavenworth, KS",
