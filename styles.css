@@ -3230,3 +3230,278 @@ button {
 #callsBackToPlaybookBtn{
   margin-bottom:14px;
 }
+
+
+/* ==============================
+   AI NOTES
+   ============================== */
+
+.notes-intro {
+  margin-bottom: 14px;
+}
+
+.notes-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 340px);
+  gap: 16px;
+  align-items: start;
+}
+
+.notes-editor-card,
+.notes-library-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+.notes-editor-card {
+  padding: 16px;
+}
+
+.notes-library-card {
+  padding: 14px;
+  position: sticky;
+  top: 12px;
+}
+
+.notes-editor-heading,
+.note-ai-heading,
+.note-final-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notes-editor-heading {
+  margin-bottom: 14px;
+}
+
+.notes-editor-heading h3,
+.notes-library-card h3 {
+  margin: 3px 0 0;
+}
+
+.notes-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.notes-field span {
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.notes-field textarea {
+  min-height: 150px;
+  resize: vertical;
+}
+
+.notes-field.compact textarea {
+  min-height: 88px;
+}
+
+.notes-field input,
+.notes-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.note-ai-panel {
+  margin-top: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #f8fbff;
+  padding: 12px;
+}
+
+.note-ai-heading strong,
+.note-final-heading strong {
+  display: block;
+  margin-top: 2px;
+  color: #1f2937;
+  font-size: 0.86rem;
+}
+
+.note-ready-badge,
+.note-local-badge {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.64rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.note-ready-badge {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.note-local-badge {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.note-ai-thread {
+  display: grid;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 10px 0;
+}
+
+.note-ai-empty {
+  border: 1px dashed #bfdbfe;
+  border-radius: 10px;
+  padding: 10px;
+  color: #64748b;
+  background: #ffffff;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.note-chat-message {
+  max-width: 92%;
+  border-radius: 12px;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.note-chat-message.user {
+  justify-self: end;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.note-chat-message.assistant {
+  justify-self: start;
+  background: #ffffff;
+}
+
+.note-chat-message span {
+  display: block;
+  margin-bottom: 3px;
+  color: #64748b;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.note-chat-message p {
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.notes-ai-send {
+  width: 100%;
+}
+
+.note-final-card {
+  margin-top: 14px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 14px;
+}
+
+.note-final-heading {
+  margin-bottom: 10px;
+}
+
+.note-clean-textarea {
+  min-height: 190px !important;
+}
+
+.note-save-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.notes-search-wrap {
+  margin: 10px 0;
+}
+
+.saved-notes-list {
+  display: grid;
+  gap: 8px;
+  max-height: 650px;
+  overflow-y: auto;
+}
+
+.saved-note-card {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  border-radius: 11px;
+  background: #ffffff;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.saved-note-card:hover,
+.saved-note-card.active {
+  border-color: #93c5fd;
+  background: #f8fbff;
+}
+
+.saved-note-card strong {
+  color: #1f2937;
+  font-size: 0.82rem;
+}
+
+.saved-note-card small {
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.saved-note-card span {
+  color: #94a3b8;
+  font-size: 0.65rem;
+}
+
+.notes-empty-state {
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+  padding: 14px;
+  color: #64748b;
+  text-align: center;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 820px) {
+  .notes-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .notes-library-card {
+    position: static;
+  }
+
+  .saved-notes-list {
+    max-height: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .notes-editor-card,
+  .notes-library-card {
+    border-radius: 12px;
+    padding: 12px;
+  }
+
+  .note-chat-message {
+    max-width: 96%;
+  }
+
+  .note-local-badge {
+    display: none;
+  }
+}
