@@ -114,6 +114,22 @@ function renderProcedures(procedureList, targetGrid = procedureGrid) {
 
     targetGrid.appendChild(button);
   });
+
+  if (isPlaybookGrid) {
+    const notesButton = document.createElement("button");
+    notesButton.type = "button";
+    notesButton.className = "procedure-button notes-playbook-button";
+    notesButton.innerHTML = `
+      <span class="procedure-button-number">${procedureList.length + 2}</span>
+      <span class="procedure-button-text">
+        <strong>Notes</strong>
+        <small>Talk through what you learned, let AI organize it, and save it for later.</small>
+      </span>
+      <span class="procedure-button-arrow">→</span>
+    `;
+    notesButton.addEventListener("click", openNotesWorkspace);
+    targetGrid.appendChild(notesButton);
+  }
 }
 
 function openProcedure(procedureId) {
@@ -155,6 +171,7 @@ function openProcedure(procedureId) {
   }
 
   playbookHome.classList.add("hidden");
+  document.getElementById("notesView")?.classList.add("hidden");
   howToView?.classList.add("hidden");
   trainingView.classList.add("hidden");
     document.getElementById("callsView")?.classList.add("hidden");
@@ -3939,6 +3956,7 @@ function showPlaybookHome() {
   setActiveModeButton("playbook");
 
   playbookHome.classList.remove("hidden");
+  document.getElementById("notesView")?.classList.add("hidden");
   howToView?.classList.add("hidden");
   procedureView.classList.add("hidden");
   trainingView.classList.add("hidden");
@@ -3953,6 +3971,7 @@ function showHowToMode() {
   setActiveModeButton("howto");
 
   playbookHome.classList.add("hidden");
+  document.getElementById("notesView")?.classList.add("hidden");
   procedureView.classList.add("hidden");
   trainingView.classList.add("hidden");
   document.getElementById("yardCheckWorkspace")?.classList.add("hidden");
@@ -3971,6 +3990,7 @@ function showHowToMode() {
 
 function showTrainingMode() {
   playbookHome.classList.add("hidden");
+  document.getElementById("notesView")?.classList.add("hidden");
   howToView?.classList.add("hidden");
   procedureView.classList.add("hidden");
   document.getElementById("yardCheckWorkspace")?.classList.add("hidden");
@@ -4117,6 +4137,364 @@ document.addEventListener("keydown", (event) => {
 // ==========================================================
 // CALL EXPERIENCE LIBRARY V1
 // ==========================================================
+
+
+// ==============================
+// AI NOTES / LEARNING JOURNAL
+// ==============================
+
+const NOTES_STORAGE_KEY = "penskeNotesV1";
+let activeNoteId = null;
+let noteConversation = [];
+
+function loadSavedNotes() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NOTES_STORAGE_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn("Could not read saved notes.", error);
+    return [];
+  }
+}
+
+function saveSavedNotes(notes) {
+  localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(Array.isArray(notes) ? notes : []));
+}
+
+function showNoteMessage(message, tone = "neutral") {
+  const box = document.getElementById("noteMessage");
+  if (!box) return;
+
+  box.textContent = message || "";
+  box.className = `call-message ${tone}`;
+  box.classList.toggle("hidden", !message);
+}
+
+function clearNoteMessage() {
+  showNoteMessage("");
+}
+
+function resetNoteEditor() {
+  activeNoteId = null;
+  noteConversation = [];
+
+  const raw = document.getElementById("noteRawInput");
+  const title = document.getElementById("noteTitleInput");
+  const clean = document.getElementById("noteCleanInput");
+  const reply = document.getElementById("noteAiReply");
+
+  if (raw) raw.value = "";
+  if (title) title.value = "";
+  if (clean) clean.value = "";
+  if (reply) reply.value = "";
+
+  document.getElementById("notesCurrentHeading").textContent = "New Note";
+  document.getElementById("deleteNoteBtn")?.classList.add("hidden");
+  document.getElementById("noteAiPanel")?.classList.add("hidden");
+  document.getElementById("noteReadyBadge")?.classList.add("hidden");
+  renderNoteConversation();
+  clearNoteMessage();
+  raw?.focus();
+}
+
+function renderNoteConversation() {
+  const thread = document.getElementById("noteAiThread");
+  if (!thread) return;
+
+  if (!noteConversation.length) {
+    thread.innerHTML = `
+      <div class="note-ai-empty">
+        AI will discuss your note here. You can correct it, add details, or ask it to word something differently before you save.
+      </div>
+    `;
+    return;
+  }
+
+  thread.innerHTML = noteConversation.map((message) => {
+    const role = message.role === "assistant" ? "assistant" : "user";
+    const label = role === "assistant" ? "AI" : "YOU";
+    return `
+      <div class="note-chat-message ${role}">
+        <span>${label}</span>
+        <p>${escapeHtml(message.text || "")}</p>
+      </div>
+    `;
+  }).join("");
+
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function renderSavedNotes() {
+  const list = document.getElementById("savedNotesList");
+  if (!list) return;
+
+  const query = (document.getElementById("notesSearch")?.value || "").trim().toLowerCase();
+  const notes = loadSavedNotes()
+    .filter((note) => {
+      if (!query) return true;
+      return [note.title, note.cleanNote, note.rawNotes]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    })
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+
+  if (!notes.length) {
+    list.innerHTML = `<div class="notes-empty-state">${query ? "No saved notes match that search." : "No saved notes yet."}</div>`;
+    return;
+  }
+
+  list.innerHTML = notes.map((note) => {
+    const preview = String(note.cleanNote || note.rawNotes || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 130);
+    const dateText = note.updatedAt
+      ? new Date(note.updatedAt).toLocaleDateString()
+      : "";
+
+    return `
+      <button class="saved-note-card ${note.id === activeNoteId ? "active" : ""}" type="button" data-note-id="${escapeHtml(note.id)}">
+        <strong>${escapeHtml(note.title || "Untitled Note")}</strong>
+        <small>${escapeHtml(preview || "Saved note")}</small>
+        <span>${escapeHtml(dateText)}</span>
+      </button>
+    `;
+  }).join("");
+
+  list.querySelectorAll("[data-note-id]").forEach((button) => {
+    button.addEventListener("click", () => openSavedNote(button.dataset.noteId));
+  });
+}
+
+function openSavedNote(noteId) {
+  const note = loadSavedNotes().find((item) => item.id === noteId);
+  if (!note) return;
+
+  activeNoteId = note.id;
+  noteConversation = Array.isArray(note.conversation) ? note.conversation : [];
+
+  document.getElementById("noteRawInput").value = note.rawNotes || "";
+  document.getElementById("noteTitleInput").value = note.title || "";
+  document.getElementById("noteCleanInput").value = note.cleanNote || "";
+  document.getElementById("noteAiReply").value = "";
+  document.getElementById("notesCurrentHeading").textContent = note.title || "Saved Note";
+  document.getElementById("deleteNoteBtn")?.classList.remove("hidden");
+
+  if (noteConversation.length) {
+    document.getElementById("noteAiPanel")?.classList.remove("hidden");
+  } else {
+    document.getElementById("noteAiPanel")?.classList.add("hidden");
+  }
+
+  document.getElementById("noteReadyBadge")?.classList.toggle("hidden", !note.cleanNote);
+  renderNoteConversation();
+  renderSavedNotes();
+  clearNoteMessage();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function askNotesAi({ followup = false } = {}) {
+  const rawNotes = document.getElementById("noteRawInput")?.value.trim() || "";
+  const currentTitle = document.getElementById("noteTitleInput")?.value.trim() || "";
+  const currentCleanNote = document.getElementById("noteCleanInput")?.value.trim() || "";
+  const replyBox = document.getElementById("noteAiReply");
+  const userReply = followup ? (replyBox?.value.trim() || "") : rawNotes;
+
+  if (!rawNotes && !currentCleanNote) {
+    showNoteMessage("Type some notes first.", "warn");
+    document.getElementById("noteRawInput")?.focus();
+    return;
+  }
+
+  if (followup && !userReply) {
+    showNoteMessage("Type what you want AI to change or discuss.", "warn");
+    replyBox?.focus();
+    return;
+  }
+
+  if (followup) {
+    noteConversation.push({
+      role: "user",
+      text: userReply,
+      createdAt: new Date().toISOString()
+    });
+    if (replyBox) replyBox.value = "";
+  } else if (!noteConversation.length) {
+    noteConversation.push({
+      role: "user",
+      text: rawNotes,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  renderNoteConversation();
+  document.getElementById("noteAiPanel")?.classList.remove("hidden");
+
+  const loading = document.getElementById("noteAiLoading");
+  const organizeButton = document.getElementById("organizeNoteBtn");
+  const updateButton = document.getElementById("sendNoteAiReplyBtn");
+
+  loading?.classList.remove("hidden");
+  if (organizeButton) organizeButton.disabled = true;
+  if (updateButton) updateButton.disabled = true;
+  clearNoteMessage();
+
+  try {
+    const response = await fetch("/.netlify/functions/call-assistant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "notes_assistant",
+        rawNotes,
+        currentTitle,
+        currentCleanNote,
+        conversation: noteConversation.map((message) => ({
+          role: message.role,
+          text: message.text
+        }))
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "AI Notes is unavailable.");
+    }
+
+    const assistantReply = String(data.reply || "").trim();
+    if (assistantReply) {
+      noteConversation.push({
+        role: "assistant",
+        text: assistantReply,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    const suggestedTitle = String(data.suggestedTitle || "").trim();
+    const cleanNote = String(data.cleanNote || "").trim();
+
+    if (suggestedTitle) {
+      document.getElementById("noteTitleInput").value = suggestedTitle;
+    }
+    if (cleanNote) {
+      document.getElementById("noteCleanInput").value = cleanNote;
+    }
+
+    document.getElementById("noteReadyBadge")?.classList.toggle("hidden", !cleanNote);
+    renderNoteConversation();
+    showNoteMessage("AI updated the note. Review it before saving.", "good");
+  } catch (error) {
+    showNoteMessage(error.message || "Could not reach AI Notes.", "warn");
+  } finally {
+    loading?.classList.add("hidden");
+    if (organizeButton) organizeButton.disabled = false;
+    if (updateButton) updateButton.disabled = false;
+  }
+}
+
+function saveCurrentNote() {
+  const title = document.getElementById("noteTitleInput")?.value.trim() || "";
+  const rawNotes = document.getElementById("noteRawInput")?.value.trim() || "";
+  const cleanNote = document.getElementById("noteCleanInput")?.value.trim() || "";
+
+  if (!title) {
+    showNoteMessage("Add a title before saving.", "warn");
+    document.getElementById("noteTitleInput")?.focus();
+    return;
+  }
+
+  if (!cleanNote && !rawNotes) {
+    showNoteMessage("There is nothing to save yet.", "warn");
+    document.getElementById("noteRawInput")?.focus();
+    return;
+  }
+
+  const notes = loadSavedNotes();
+  const now = new Date().toISOString();
+  let note = activeNoteId ? notes.find((item) => item.id === activeNoteId) : null;
+
+  if (!note) {
+    note = {
+      id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: now
+    };
+    notes.push(note);
+    activeNoteId = note.id;
+  }
+
+  note.title = title;
+  note.rawNotes = rawNotes;
+  note.cleanNote = cleanNote || rawNotes;
+  note.conversation = noteConversation;
+  note.updatedAt = now;
+
+  saveSavedNotes(notes);
+  document.getElementById("notesCurrentHeading").textContent = title;
+  document.getElementById("deleteNoteBtn")?.classList.remove("hidden");
+  renderSavedNotes();
+  showNoteMessage("Note saved on this device.", "good");
+}
+
+function deleteCurrentNote() {
+  if (!activeNoteId) return;
+
+  const notes = loadSavedNotes();
+  const note = notes.find((item) => item.id === activeNoteId);
+  if (!note) return;
+
+  if (!window.confirm(`Delete "${note.title || "this note"}"?`)) {
+    return;
+  }
+
+  saveSavedNotes(notes.filter((item) => item.id !== activeNoteId));
+  resetNoteEditor();
+  renderSavedNotes();
+  showNoteMessage("Note deleted.", "good");
+}
+
+function openNotesWorkspace() {
+  currentMode = "playbook";
+  setActiveModeButton("playbook");
+
+  document.getElementById("playbookHome")?.classList.add("hidden");
+  document.getElementById("howToView")?.classList.add("hidden");
+  document.getElementById("procedureView")?.classList.add("hidden");
+  document.getElementById("trainingView")?.classList.add("hidden");
+  document.getElementById("yardCheckWorkspace")?.classList.add("hidden");
+  document.getElementById("callsView")?.classList.add("hidden");
+  document.getElementById("notesView")?.classList.remove("hidden");
+
+  renderSavedNotes();
+  renderNoteConversation();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function initializeNotes() {
+  const notesView = document.getElementById("notesView");
+  if (!notesView) return;
+
+  document.getElementById("notesBackToPlaybookBtn")?.addEventListener("click", showPlaybookHome);
+  document.getElementById("newNoteBtn")?.addEventListener("click", resetNoteEditor);
+  document.getElementById("organizeNoteBtn")?.addEventListener("click", () => askNotesAi({ followup: false }));
+  document.getElementById("sendNoteAiReplyBtn")?.addEventListener("click", () => askNotesAi({ followup: true }));
+  document.getElementById("saveNoteBtn")?.addEventListener("click", saveCurrentNote);
+  document.getElementById("deleteNoteBtn")?.addEventListener("click", deleteCurrentNote);
+  document.getElementById("notesSearch")?.addEventListener("input", renderSavedNotes);
+
+  document.getElementById("noteAiReply")?.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      askNotesAi({ followup: true });
+    }
+  });
+
+  renderSavedNotes();
+  renderNoteConversation();
+}
+
+document.addEventListener("DOMContentLoaded", initializeNotes);
+
 
 const CALLS_STORAGE_KEY = "penskeCallsV1";
 const PLAYBOOK_BACKUP_VERSION = 2;
@@ -5479,6 +5857,11 @@ async function resetEverything() {
   renderActiveCall();
   renderCallHistory();
 
+  if (typeof resetNoteEditor === "function") {
+    resetNoteEditor();
+    renderSavedNotes();
+  }
+
   if (typeof renderVehicleLogList === "function") {
     renderVehicleLogList();
   }
@@ -5875,6 +6258,7 @@ function openCallsWorkspace() {
   setActiveModeButton("playbook");
 
   document.getElementById("playbookHome")?.classList.add("hidden");
+  document.getElementById("notesView")?.classList.add("hidden");
   document.getElementById("howToView")?.classList.add("hidden");
   document.getElementById("procedureView")?.classList.add("hidden");
   document.getElementById("trainingView")?.classList.add("hidden");
