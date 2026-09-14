@@ -29,7 +29,7 @@
       <div class="section-intro">
         <span class="eyebrow dark">EVERYDAY TOOLS</span>
         <h2>Your daily Playbook</h2>
-        <p>The six things you want quickest access to during the day.</p>
+        <p>The seven things you want quickest access to during the day.</p>
       </div>
 
       <div id="procedureGrid" class="procedure-grid"></div>
@@ -44,7 +44,7 @@
         </div>
 
         <p>
-          Export your saved Calls, Vehicle Log, Yard Check session, Yard Check page images,
+          Export your saved Calls, Notes, Vehicle Log, Yard Check session, Yard Check page images,
           checked/research status, yard notes, and other saved Playbook data into one file.
         </p>
 
@@ -75,6 +75,109 @@
           Your OpenAI API key is never included in backup files.
         </p>
       </section>
+    </section>
+
+
+    <section id="notesView" class="hidden">
+      <button id="notesBackToPlaybookBtn" class="back-btn" type="button">← Back to Playbook</button>
+
+      <div class="section-intro notes-intro">
+        <span class="eyebrow dark">AI NOTES</span>
+        <h2>Notes</h2>
+        <p>Talk through what you learned, let AI clean it up, then save it for later.</p>
+      </div>
+
+      <div class="notes-workspace">
+        <section class="notes-editor-card">
+          <div class="notes-editor-heading">
+            <div>
+              <span class="mini-label">CURRENT NOTE</span>
+              <h3 id="notesCurrentHeading">New Note</h3>
+            </div>
+            <button id="newNoteBtn" class="secondary-btn small-btn" type="button">New Note</button>
+          </div>
+
+          <label class="notes-field" for="noteRawInput">
+            <span>Explain it in your own words</span>
+            <textarea
+              id="noteRawInput"
+              placeholder="Type it how you would say it. Messy is fine. Example: Today I learned that when..."
+            ></textarea>
+          </label>
+
+          <button id="organizeNoteBtn" class="ai-help-btn" type="button">
+            Organize With AI
+          </button>
+
+          <div id="noteAiLoading" class="ai-loading hidden">Cleaning up your note...</div>
+          <div id="noteMessage" class="call-message hidden"></div>
+
+          <section id="noteAiPanel" class="note-ai-panel hidden">
+            <div class="note-ai-heading">
+              <div>
+                <span class="mini-label">DISCUSS WITH AI</span>
+                <strong>Keep talking until the note sounds right</strong>
+              </div>
+              <span id="noteReadyBadge" class="note-ready-badge hidden">Ready to save</span>
+            </div>
+
+            <div id="noteAiThread" class="note-ai-thread"></div>
+
+            <label class="notes-field compact" for="noteAiReply">
+              <span>Tell AI what to change, add, or explain</span>
+              <textarea
+                id="noteAiReply"
+                placeholder="Example: Add that I had to check one day ahead, and keep it in my wording."
+              ></textarea>
+            </label>
+
+            <button id="sendNoteAiReplyBtn" class="secondary-btn notes-ai-send" type="button">
+              Update Note With AI
+            </button>
+          </section>
+
+          <section class="note-final-card">
+            <div class="note-final-heading">
+              <div>
+                <span class="mini-label">SAVE VERSION</span>
+                <strong>Review before saving</strong>
+              </div>
+              <span class="note-local-badge">Saved on this device</span>
+            </div>
+
+            <label class="notes-field compact" for="noteTitleInput">
+              <span>Title</span>
+              <input id="noteTitleInput" type="text" placeholder="AI can suggest a title" />
+            </label>
+
+            <label class="notes-field compact" for="noteCleanInput">
+              <span>Cleaned Note</span>
+              <textarea
+                id="noteCleanInput"
+                class="note-clean-textarea"
+                placeholder="Your polished note will appear here. You can edit it before saving."
+              ></textarea>
+            </label>
+
+            <div class="note-save-actions">
+              <button id="saveNoteBtn" class="primary-btn" type="button">Save Note</button>
+              <button id="deleteNoteBtn" class="secondary-btn danger-outline hidden" type="button">Delete Note</button>
+            </div>
+          </section>
+        </section>
+
+        <aside class="notes-library-card">
+          <span class="mini-label">SAVED NOTES</span>
+          <h3>Your Notes</h3>
+
+          <label class="search-wrap notes-search-wrap" for="notesSearch">
+            <span class="sr-only">Search saved notes</span>
+            <input id="notesSearch" type="search" placeholder="Search notes..." autocomplete="off" />
+          </label>
+
+          <div id="savedNotesList" class="saved-notes-list"></div>
+        </aside>
+      </div>
     </section>
 
     <section id="howToView" class="hidden">
