@@ -1758,6 +1758,9 @@ function renderYardImportReview() {
   const panel = document.getElementById("yardImportReview");
   const list = document.getElementById("yardReviewList");
   const summary = document.getElementById("yardReviewSummary");
+  const verifyAllWrap = document.getElementById("yardVerifyAllWrap");
+  const verifyAllBtn = document.getElementById("verifyAllYardBtn");
+  const verifyAllHint = document.getElementById("yardVerifyAllHint");
 
   if (!panel || !list || !summary) return;
 
@@ -1780,6 +1783,17 @@ function renderYardImportReview() {
     <div><strong>${high}</strong><span>High confidence</span></div>
     <div><strong>${questionable.length}</strong><span>Verify</span></div>
   `;
+
+  if (verifyAllWrap && verifyAllBtn && verifyAllHint) {
+    if (questionable.length) {
+      verifyAllWrap.classList.remove("hidden");
+      verifyAllBtn.textContent = `Verify All ${questionable.length}`;
+      verifyAllHint.textContent = `Marks all ${questionable.length} medium/low-confidence rows as correct in one step.`;
+    } else {
+      verifyAllWrap.classList.add("hidden");
+      verifyAllHint.textContent = "";
+    }
+  }
 
   if (!questionable.length) {
     list.innerHTML = `
@@ -1815,6 +1829,35 @@ function renderYardImportReview() {
   list.querySelectorAll("[data-yard-correct]").forEach((button) => {
     button.addEventListener("click", () => correctYardUnit(button.dataset.yardCorrect));
   });
+}
+
+function verifyAllYardUnits() {
+  const session = loadYardSession();
+  const questionable = session.units.filter((unit) => unit.confidence !== "high");
+
+  if (!questionable.length) {
+    window.alert("There are no medium/low-confidence rows left to verify.");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Mark all ${questionable.length} medium/low-confidence imported rows as correct?\n\nThis does not change the unit numbers or other imported information. It only marks these rows as verified/high confidence.`
+  );
+
+  if (!confirmed) return;
+
+  questionable.forEach((unit) => {
+    unit.confidence = "high";
+  });
+
+  saveYardSession(session);
+  renderYardImportReview();
+
+  const status = document.getElementById("yardImportStatus");
+  if (status) {
+    status.textContent = `Verified ${questionable.length} imported row${questionable.length === 1 ? "" : "s"}.`;
+    status.className = "yard-status good";
+  }
 }
 
 function correctYardUnit(unitId) {
@@ -2460,6 +2503,7 @@ function initializeYardCheck() {
 
   document.getElementById("yardPhotoInput")?.addEventListener("change", handleYardFileSelection);
   document.getElementById("analyzeYardPhotosBtn")?.addEventListener("click", analyzeYardPhotos);
+  document.getElementById("verifyAllYardBtn")?.addEventListener("click", verifyAllYardUnits);
   document.getElementById("startYardModeBtn")?.addEventListener("click", startYardMode);
   document.getElementById("yardUnitSearch")?.addEventListener("input", searchYardUnit);
   document.getElementById("closeYardPageModalBtn")?.addEventListener("click", closeYardPageModal);
