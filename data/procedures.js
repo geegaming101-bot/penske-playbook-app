@@ -742,7 +742,11 @@ const procedures = [
           "0386-46 — Colby, KS",
           "0386-64 — Joseph, MO",
           "0386-90 — Topeka, KS",
-          "0387-24 — Shawnee, KS"
+          "0387-24 — Shawnee, KS",
+          "0386-31 — Home Depot #3019, Kansas City, MO",
+          "0387-30 — Lee's Summit Total, MO",
+          "0387-35 — Pro Moving & Storage, Lawrence, KS",
+          "0387-33 — Waters Hardware, Salina, KS"
         ]
             }
     ]
