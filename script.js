@@ -297,7 +297,7 @@ function renderSundayHikeFinder(container) {
       actions.className = 'sunday-hike-actions';
       const miles = document.createElement('span');
       miles.textContent = `~${branch.miles} mi`;
-      miles.title = 'Offline estimated mileage; not a verified road route';
+      miles.title = 'Offline estimated mileage using approximate city-area coordinates; not a verified road route';
       actions.appendChild(miles);
       if (source.address && branch.address) {
         const link = document.createElement('a');
@@ -387,6 +387,30 @@ function renderStandardProcedure(procedure) {
 
 
 const DISTRICT_BRANCH_DIRECTORY = {
+  "0386-31": {
+    name: "Home Depot #3019, Kansas City, MO",
+    address: "8598 N Church Road, Kansas City, MO 64158",
+    lat: 39.245, lon: -94.455,
+    aliases: ["home depot 3019", "north church road", "kansas city 64158"]
+  },
+  "0387-30": {
+    name: "Lee's Summit Total, MO",
+    address: "512 SW 3rd St, Lee's Summit, MO 64063",
+    lat: 38.912, lon: -94.386,
+    aliases: ["lee's summit", "lees summit", "sw 3rd"]
+  },
+  "0387-35": {
+    name: "Pro Moving & Storage, Lawrence, KS",
+    address: "3620 Thomas Ct, Lawrence, KS 66046",
+    lat: 38.935, lon: -95.245,
+    aliases: ["pro moving", "lawrence", "thomas court"]
+  },
+  "0387-33": {
+    name: "Waters Hardware, Salina, KS",
+    address: "460 S Ohio St, Salina, KS 67401",
+    lat: 38.835, lon: -97.598,
+    aliases: ["waters hardware", "salina", "ohio street"]
+  },
   "0386-10": {
     name: "KC, MO",
     address: "1111 Century Ave, Kansas City, MO 64120",
