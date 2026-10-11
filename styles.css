@@ -3814,3 +3814,11 @@ button {
   font-size: 0.72rem;
   line-height: 1.4;
 }
+
+/* Sunday opening and closing interactive checklist */
+.sunday-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px;margin:0 0 18px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;color:#152238}
+.sunday-reset{padding:9px 14px;border:1px solid #94a3b8;border-radius:8px;background:white;color:#172033;cursor:pointer;font-weight:600}
+.sunday-section{margin-bottom:20px}
+.sunday-check{display:flex;align-items:flex-start;gap:12px;padding:10px 6px;line-height:1.5;cursor:pointer;color:#1f2937}
+.sunday-check input{width:19px;height:19px;flex-shrink:0;margin-top:2px;accent-color:#1e3a5f}
+.sunday-check input:checked+span{text-decoration:line-through;opacity:.65}
