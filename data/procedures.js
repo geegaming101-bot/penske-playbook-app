@@ -3,7 +3,23 @@
 // PROCEDURE DATA
 // ==============================
 
+const SUNDAY_CHECKLIST = [
+  {heading:"Step 1 — Check Reservations (6:00 AM)",items:["Open Reservations.","Review all reservations scheduled for Sunday.","Check that reservations are accounted for.","Identify scheduled pickups and returns."]},
+  {heading:"Step 2 — Print & Complete Yard Check",items:["Print the Yard Check report.","Walk the vehicle lots and physically check units against the report.","Write discrepancies and observations on the printed Yard Check.","Return to the office with the annotated report."]},
+  {heading:"Step 3 — Update Excel Task List",items:["Open the Task List Excel spreadsheet.","Review handwritten Yard Check notes.","Enter items needing attention into the Task List.","Add notes describing each issue or needed action and save."]},
+  {heading:"Step 4 — Vehicle Availability & Morning Reconciliation (before 8:00 AM)",items:["Print the Wash List (your notes reference EMC).","Check in returned vehicles as appropriate.","Change Wash units to Available only after confirming they are ready.","Open Vehicle → Vehicle Reconciliation → Reconcile.","Finish morning reconciliation before 8:00 AM."]},
+  {heading:"Step 5A — Identify Reservations Needing a Hike (after 8:00 AM)",items:["Open Whiteboard and filter Light Duty / Medium Duty.","Set Through Date one day ahead; do Light Duty first.","Per training notes, skip 0386-10, 0387-10, and 0417-10 when finding hikes.","Compare Total Reservations against Assigned Reservations.","Identify unassigned reservations and the vehicle type needed.","Search Whiteboard for nearby locations with an available unit."]},
+  {heading:"Step 5B — Locate a Vehicle",items:["Recheck the Through Date filter (one day ahead).","Find an available unit and record its unit number.","Record the supplying branch/location ID.","Return to the location with the unassigned reservation."]},
+  {heading:"Step 5C — Request Hike, Then Assign",items:["Select Action → Request Hike.","Fill in requested information and Hike From location.","Enter today's date; click outside the date field.","Verify the auto-generated Needed By date and record its date/time.","Enter unit number; confirm VIN populates.","Select SAVE and YES.","Now assign the unit to the reservation (per your revised notes)."]},
+  {heading:"Step 5D — Complete Non-Rev",items:["In RentalNet, change the vehicle location to the agent where the vehicle currently is, following your training workflow.","Open Quote → Non Rev.","Fill out Non-Rev information.","Complete the Non-Rev and verify it is recorded."]},
+  {heading:"Step 6 — Pre-Close & Reconcile (around 11:30 AM)",items:["Complete Pre-Close when permitted by workflow and business volume.","Perform closing reconciliation.","Finish both before noon."]},
+  {heading:"Step 7 — SOS Email",items:["Refer to the previous Sunday SOS email for format.","Prepare and verify today's SOS information.","Send the Sunday SOS email (can be done early)."]},
+  {heading:"Step 8 — Keys",items:["Check and secure keys in their designated locations.","Verify no keys remain unsecured."]},
+  {heading:"Step 9 — Lock Up (12:00 PM)",items:["Perform final closing check.","Secure and lock the location before leaving."]}
+];
+
 const procedures = [
+  { id: 20, title: "Sunday Opening & Closing", category: "Operations", type: "sundayChecklist", description: "6 AM–12 PM: reservations, yard check, Task List, reconciliation, hikes, SOS and closing.", sections: SUNDAY_CHECKLIST },
   {
     id: 1,
     title: "Confirmation",
