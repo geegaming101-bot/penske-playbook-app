@@ -23,7 +23,7 @@ const howToGrid = document.getElementById("howToGrid");
 const procedureSearch = document.getElementById("procedureSearch");
 
 const EVERYDAY_PROCEDURE_IDS = [3, 13, 1, 2, 18];
-const HOW_TO_PROCEDURE_IDS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19];
+const HOW_TO_PROCEDURE_IDS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19, 20];
 
 function everydayProcedures() {
   return procedures.filter((procedure) => EVERYDAY_PROCEDURE_IDS.includes(procedure.id));
@@ -164,6 +164,8 @@ function openProcedure(procedureId) {
     renderCallbackBuilder();
   } else if (procedure.id === 3) {
     renderVehicleLog();
+  } else if (procedure.id === 20) {
+    renderSundayChecklist(procedure);
   } else if (procedure.id === 18) {
     renderDistrictBranchesTool(procedure);
   } else {
@@ -178,6 +180,62 @@ function openProcedure(procedureId) {
   procedureView.classList.remove("hidden");
 
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+
+// Personal Sunday checklist progress is saved only in this browser.
+function renderSundayChecklist(procedure) {
+  const storageKey = "penske_sunday_checklist_v1";
+  const readProgress = () => {
+    try { const value = JSON.parse(localStorage.getItem(storageKey) || "{}"); return value && typeof value === "object" ? value : {}; }
+    catch { return {}; }
+  };
+  let progress = readProgress();
+  const total = procedure.sections.reduce((sum, section) => sum + section.items.length, 0);
+  const toolbar = document.createElement("div");
+  toolbar.className = "sunday-toolbar";
+  const count = document.createElement("strong");
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.textContent = "Reset for next Sunday";
+  reset.className = "sunday-reset";
+  const updateCount = () => { count.textContent = `${Object.values(progress).filter(Boolean).length} / ${total} tasks complete`; };
+  updateCount();
+  reset.addEventListener("click", () => {
+    if (!window.confirm("Clear all Sunday checklist checkmarks for the next shift?")) return;
+    progress = {};
+    localStorage.removeItem(storageKey);
+    procedureContent.querySelectorAll('.sunday-check input[type="checkbox"]').forEach(input => { input.checked = false; });
+    updateCount();
+  });
+  toolbar.append(count, reset);
+  procedureContent.appendChild(toolbar);
+  procedure.sections.forEach((section, sectionIndex) => {
+    const wrapper = document.createElement("section");
+    wrapper.className = "procedure-section sunday-section";
+    const heading = document.createElement("h3");
+    heading.textContent = section.heading;
+    wrapper.appendChild(heading);
+    section.items.forEach((item, itemIndex) => {
+      const key = `${sectionIndex}-${itemIndex}`;
+      const label = document.createElement("label");
+      label.className = "sunday-check";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = !!progress[key];
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) progress[key] = true;
+        else delete progress[key];
+        localStorage.setItem(storageKey, JSON.stringify(progress));
+        updateCount();
+      });
+      const span = document.createElement("span");
+      span.textContent = item;
+      label.append(checkbox, span);
+      wrapper.appendChild(label);
+    });
+    procedureContent.appendChild(wrapper);
+  });
 }
 
 function renderStandardProcedure(procedure) {
