@@ -210,6 +210,8 @@ function renderSundayChecklist(procedure) {
   });
   toolbar.append(count, reset);
   procedureContent.appendChild(toolbar);
+  // Link the Sunday hike workflow to the existing district branch directory.
+  renderSundayHikeFinder(procedureContent);
   procedure.sections.forEach((section, sectionIndex) => {
     const wrapper = document.createElement("section");
     wrapper.className = "procedure-section sunday-section";
@@ -236,6 +238,81 @@ function renderSundayChecklist(procedure) {
     });
     procedureContent.appendChild(wrapper);
   });
+  const finder = procedureContent.querySelector(".sunday-hike-finder");
+  const step5 = [...procedureContent.querySelectorAll(".sunday-section")].find(el => el.querySelector("h3")?.textContent.includes("Step 5A"));
+  if (finder && step5) step5.before(finder);
+}
+
+// Sunday branch finder: no external API key, no invented live inventory or routing.
+function renderSundayHikeFinder(container) {
+  const excluded = new Set(["0386-10", "0387-10", "0417-10"]);
+  const branches = getDistrictBranchesArray().sort((a,b) => a.code.localeCompare(b.code));
+  const section = document.createElement("section");
+  section.className = "sunday-hike-finder";
+  section.innerHTML = `
+    <div class="sunday-hike-heading"><div><span class="mini-label">STEP 5A • DISTRICT BRANCHES</span><h3>District Hike Finder</h3></div><span class="branch-distance-badge">Offline estimates</span></div>
+    <p>Choose the branch with the reservation to see all other district locations, nearest first. Check Whiteboard for actual Light Duty or Medium Duty availability before requesting a hike.</p>
+    <div class="sunday-hike-controls"><label>Reservation branch<select id="sundayHikeOrigin"></select></label><label>Vehicle type<select id="sundayHikeDuty"><option>Light Duty</option><option>Medium Duty</option></select></label></div>
+    <p class="sunday-hike-note">Training note: skip 0386-10, 0387-10 and 0417-10 when searching for reservations needing hikes. They remain visible below as district references; verify sourcing rules with your supervisor.</p>
+    <div id="sundayHikeResults" class="sunday-hike-results"></div>
+  `;
+  // Place directly before Step 5A rather than separating it from the checklist.
+  const step5 = [...container.querySelectorAll('.sunday-section')].find(el => el.querySelector('h3')?.textContent.includes('Step 5A'));
+  if (step5) step5.before(section);
+  else container.appendChild(section);
+  const origin = section.querySelector('#sundayHikeOrigin');
+  const results = section.querySelector('#sundayHikeResults');
+  branches.forEach(branch => {
+    const option = document.createElement('option');
+    option.value = branch.code;
+    option.textContent = `${branch.code} — ${branch.name}`;
+    origin.appendChild(option);
+  });
+  origin.value = branches.some(b => b.code === '0386-20') ? '0386-20' : branches[0]?.code;
+  function draw() {
+    const source = DISTRICT_BRANCH_DIRECTORY[origin.value];
+    if (!source) { results.textContent = 'No branch location available.'; return; }
+    const nearby = getNearbyDistrictBranches(origin.value);
+    results.replaceChildren();
+    const summary = document.createElement('p');
+    summary.className = 'sunday-hike-summary';
+    summary.textContent = `${nearby.length} other district branches • ranked by approximate mileage (not live driving distance or time)`;
+    results.appendChild(summary);
+    nearby.forEach((branch, index) => {
+      const row = document.createElement('div');
+      row.className = 'sunday-hike-row';
+      const details = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = `${index + 1}. ${branch.code} — ${branch.name}`;
+      const address = document.createElement('small');
+      address.textContent = branch.address || '';
+      details.append(title,address);
+      if (excluded.has(branch.code)) {
+        const note = document.createElement('small');
+        note.className = 'sunday-hike-excluded';
+        note.textContent = 'Skip when finding reservations needing hikes (training note)';
+        details.appendChild(note);
+      }
+      const actions = document.createElement('div');
+      actions.className = 'sunday-hike-actions';
+      const miles = document.createElement('span');
+      miles.textContent = `~${branch.miles} mi`;
+      miles.title = 'Offline estimated mileage; not a verified road route';
+      actions.appendChild(miles);
+      if (source.address && branch.address) {
+        const link = document.createElement('a');
+        link.textContent = 'Driving route ↗';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.href = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(source.address)}&destination=${encodeURIComponent(branch.address)}&travelmode=driving`;
+        actions.appendChild(link);
+      }
+      row.append(details,actions);
+      results.appendChild(row);
+    });
+  }
+  origin.addEventListener('change', draw);
+  draw();
 }
 
 function renderStandardProcedure(procedure) {
